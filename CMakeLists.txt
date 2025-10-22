@@ -18,10 +18,10 @@ if(NOT CMAKE_BUILD_TYPE) # проверка имеющихся у компиля
 endif()
 
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/TAlgorithmLibrary)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/TFunctionLibrary)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/TIntervalLibrary)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/TPointLibrary)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Algorithm)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Function)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Interval)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Point)
 
 
 add_subdirectory(Algorithm)
