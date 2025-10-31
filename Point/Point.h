@@ -6,7 +6,8 @@
 #include <sstream>
 
 template<class T, std::size_t N>
-class TPoint {
+class TPoint
+{
 private:
   std::array<T, N> coords;
 
@@ -59,8 +60,8 @@ public:
   const std::array<T, N>& data() const;
   std::array<T, N>& data();
 
-  template<class T, std::size_t N>
-  friend std::ostream& operator << (std::ostream& out, const TPoint<T, N>& other);
+  template<class O, std::size_t M>
+  friend std::ostream& operator << (std::ostream& out, const TPoint<O, M>& other);
 };
 
 
@@ -83,7 +84,7 @@ TPoint<T, N>::TPoint(Args... args) : coords{ static_cast<T>(args)... }
   static_assert(sizeof...(args) == N, "Wrong number of arguments");
 }
 
-// Определения методов доступа
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 template<class T, std::size_t N>
 T& TPoint<T, N>::operator[](std::size_t i) 
 {
@@ -130,32 +131,34 @@ auto TPoint<T, N>::end() const
   return coords.end();
 }
 
-// Определения арифметических операций
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 template<class T, std::size_t N>
 TPoint<T, N> TPoint<T, N>::operator+(const TPoint& other) const 
 {
   TPoint result;
-  for (std::size_t i = 0; i < N; ++i) {
+  for (std::size_t i = 0; i < N; ++i)
     result[i] = coords[i] + other[i];
-  }
+
   return result;
 }
 
 template<class T, std::size_t N>
-TPoint<T, N> TPoint<T, N>::operator-(const TPoint& other) const {
+TPoint<T, N> TPoint<T, N>::operator-(const TPoint& other) const 
+{
   TPoint result;
-  for (std::size_t i = 0; i < N; ++i) {
+  for (std::size_t i = 0; i < N; ++i)
     result[i] = coords[i] - other[i];
-  }
+
   return result;
 }
 
 template<class T, std::size_t N>
-TPoint<T, N> TPoint<T, N>::operator*(T scalar) const {
+TPoint<T, N> TPoint<T, N>::operator*(T scalar) const 
+{
   TPoint result;
-  for (std::size_t i = 0; i < N; ++i) {
+  for (std::size_t i = 0; i < N; ++i)
     result[i] = coords[i] * scalar;
-  }
+
   return result;
 }
 
@@ -172,53 +175,59 @@ TPoint<T, N> TPoint<T, N>::operator/(T scalar) const {
 }
 
 template<class T, std::size_t N>
-TPoint<T, N>& TPoint<T, N>::operator+=(const TPoint& other) {
-  for (std::size_t i = 0; i < N; ++i) {
+TPoint<T, N>& TPoint<T, N>::operator+=(const TPoint& other) 
+{
+  for (std::size_t i = 0; i < N; ++i)
     coords[i] += other[i];
-  }
+
   return *this;
 }
 
 template<class T, std::size_t N>
-TPoint<T, N>& TPoint<T, N>::operator-=(const TPoint& other) {
-  for (std::size_t i = 0; i < N; ++i) {
+TPoint<T, N>& TPoint<T, N>::operator-=(const TPoint& other) 
+{
+  for (std::size_t i = 0; i < N; ++i)
     coords[i] -= other[i];
-  }
+
   return *this;
 }
 
 template<class T, std::size_t N>
-TPoint<T, N>& TPoint<T, N>::operator*=(T scalar) {
-  for (std::size_t i = 0; i < N; ++i) {
+TPoint<T, N>& TPoint<T, N>::operator*=(T scalar)
+{
+  for (std::size_t i = 0; i < N; ++i) 
     coords[i] *= scalar;
-  }
+
   return *this;
 }
 
 template<class T, std::size_t N>
-TPoint<T, N>& TPoint<T, N>::operator/=(T scalar) {
-  if (std::abs(scalar) < 1e-10) {
+TPoint<T, N>& TPoint<T, N>::operator/=(T scalar) 
+{
+  if (std::abs(scalar) < 1e-10) 
     throw std::domain_error("Division by zero");
-  }
-  for (std::size_t i = 0; i < N; ++i) {
+
+  for (std::size_t i = 0; i < N; ++i)
     coords[i] /= scalar;
-  }
+
   return *this;
 }
 
-// Определение унарного минуса
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 template<class T, std::size_t N>
-TPoint<T, N> TPoint<T, N>::operator-() const {
+TPoint<T, N> TPoint<T, N>::operator-() const 
+{
   TPoint result;
-  for (std::size_t i = 0; i < N; ++i) {
+  for (std::size_t i = 0; i < N; ++i) 
     result[i] = -coords[i];
-  }
+
   return result;
 }
 
-// Определения операций сравнения
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 template<class T, std::size_t N>
-bool TPoint<T, N>::operator==(const TPoint& other) const {
+bool TPoint<T, N>::operator==(const TPoint& other) const 
+{
   for (std::size_t i = 0; i < N; ++i) {
     if (std::abs(coords[i] - other[i]) > 1e-10) {
       return false;
@@ -228,16 +237,18 @@ bool TPoint<T, N>::operator==(const TPoint& other) const {
 }
 
 template<class T, std::size_t N>
-bool TPoint<T, N>::operator!=(const TPoint& other) const {
+bool TPoint<T, N>::operator!=(const TPoint& other) const 
+{
   return !(*this == other);
 }
 
 template<class T, std::size_t N>
-bool TPoint<T, N>::operator<(const TPoint& other) const {
+bool TPoint<T, N>::operator<(const TPoint& other) const
+{
   return coords < other.coords;
 }
 
-// Определения векторных операций
+
 template<class T, std::size_t N>
 T TPoint<T, N>::dot(const TPoint& other) const {
   T result = 0;
@@ -258,7 +269,6 @@ TPoint<T, N>::cross(const TPoint& other) const {
   );
 }
 
-// Определения норм и расстояний
 template<class T, std::size_t N>
 T TPoint<T, N>::norm() const 
 {
@@ -269,7 +279,7 @@ template<class T, std::size_t N>
 T TPoint<T, N>::distance(const TPoint& other) const {
   return (*this - other).norm();
 }
-// Определения нормализации
+
 template<class T, std::size_t N>
 TPoint<T, N> TPoint<T, N>::normalized() const
 {
@@ -285,7 +295,6 @@ void TPoint<T, N>::normalize()
   *this = normalized();
 }
 
-// Определение проекции
 template<class T, std::size_t N>
 TPoint<T, N> TPoint<T, N>::projectOn(const TPoint& other) const
 {
