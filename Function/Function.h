@@ -12,14 +12,24 @@ private:
   FunctionType func;
   TPoint<T, N> lowerBound;
   TPoint<T, N> upperBound;
+  bool maximization;
+
+  // Вспомогательная функция для инверсии
+  T applyInversion(T value) const {
+    return maximization ? -value : value;
+  }
 
 public:
   TFunction();
-  TFunction(FunctionType f, const TPoint<T, N>& lower, const TPoint<T, N>& upper);
+  TFunction(FunctionType f, const TPoint<T, N>& lower, const TPoint<T, N>& upper, bool findMax = false);
 
   // Установить функцию и границы
   void setFunction(FunctionType f);
   void setBounds(const TPoint<T, N>& lower, const TPoint<T, N>& upper);
+  void setMaximization(bool findMax);
+
+  // Проверка режима
+  bool isMaximization() const;
 
   // Нормировка: из реальных координат [lower, upper] в [0, 1]^N
   TPoint<T, N> normalize(const TPoint<T, N>& point) const;
@@ -28,10 +38,21 @@ public:
   TPoint<T, N> denormalize(const TPoint<T, N>& point) const;
 
   // Вычислить значение функции в точке (в реальных координатах)
+  // Автоматически инвертирует если режим максимизации
   T operator()(const TPoint<T, N>& point) const;
 
   // Вычислить значение функции в нормированной точке [0, 1]^N
+  // Автоматически инвертирует если режим максимизации
   T evaluateNormalized(const TPoint<T, N>& normalizedPoint) const;
+
+  // Вычислить РЕАЛЬНОЕ значение функции (без инверсии)
+  T evaluateReal(const TPoint<T, N>& point) const;
+  
+  // Вычислить РЕАЛЬНОЕ значение в нормированной точке (без инверсии)
+  T evaluateRealNormalized(const TPoint<T, N>& normalizedPoint) const;
+
+  // Преобразовать результат АГП в реальное значение
+  T toRealValue(T agpValue) const;
 
   // Получить границы
   const TPoint<T, N>& getLowerBound() const;
@@ -44,12 +65,12 @@ public:
 
 template<class T, std::size_t N>
 TFunction<T, N>::TFunction() 
-  : func(nullptr)
+  : func(nullptr), maximization(false)
 {}
 
 template<class T, std::size_t N>
-TFunction<T, N>::TFunction(FunctionType f, const TPoint<T, N>& lower, const TPoint<T, N>& upper)
-  : func(f), lowerBound(lower), upperBound(upper)
+TFunction<T, N>::TFunction(FunctionType f, const TPoint<T, N>& lower, const TPoint<T, N>& upper, bool findMax)
+  : func(f), lowerBound(lower), upperBound(upper), maximization(findMax)
 {
   // Проверяем корректность границ
   for (std::size_t i = 0; i < N; ++i) {
@@ -75,6 +96,18 @@ void TFunction<T, N>::setBounds(const TPoint<T, N>& lower, const TPoint<T, N>& u
   }
   lowerBound = lower;
   upperBound = upper;
+}
+
+template<class T, std::size_t N>
+void TFunction<T, N>::setMaximization(bool findMax)
+{
+  maximization = findMax;
+}
+
+template<class T, std::size_t N>
+bool TFunction<T, N>::isMaximization() const
+{
+  return maximization;
 }
 
 template<class T, std::size_t N>
@@ -108,7 +141,7 @@ T TFunction<T, N>::operator()(const TPoint<T, N>& point) const
   if (!func) {
     throw std::runtime_error("Function is not set");
   }
-  return func(point);
+  return applyInversion(func(point));
 }
 
 template<class T, std::size_t N>
@@ -118,9 +151,34 @@ T TFunction<T, N>::evaluateNormalized(const TPoint<T, N>& normalizedPoint) const
     throw std::runtime_error("Function is not set");
   }
   
-  // Преобразуем из [0, 1]^N в реальные координаты и вычисляем
+  TPoint<T, N> realPoint = denormalize(normalizedPoint);
+  return applyInversion(func(realPoint));
+}
+
+template<class T, std::size_t N>
+T TFunction<T, N>::evaluateReal(const TPoint<T, N>& point) const
+{
+  if (!func) {
+    throw std::runtime_error("Function is not set");
+  }
+  return func(point);
+}
+
+template<class T, std::size_t N>
+T TFunction<T, N>::evaluateRealNormalized(const TPoint<T, N>& normalizedPoint) const
+{
+  if (!func) {
+    throw std::runtime_error("Function is not set");
+  }
+  
   TPoint<T, N> realPoint = denormalize(normalizedPoint);
   return func(realPoint);
+}
+
+template<class T, std::size_t N>
+T TFunction<T, N>::toRealValue(T agpValue) const
+{
+  return applyInversion(agpValue);
 }
 
 template<class T, std::size_t N>

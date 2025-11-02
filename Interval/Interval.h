@@ -6,9 +6,11 @@
 #include <iostream>
 
 template<class T>
-class TInterval {
+class TInterval 
+{
 public:
-  struct Interval {
+  struct Interval 
+  {
     T left;
     T right;
     T R;  
@@ -51,6 +53,9 @@ public:
   T getLength(size_t index) const;
   // Получить индекс интервала с максимальной характеристикой
   std::size_t getMaxRIntervalIndex() const;
+  // Получить индекс интервала с минимальной характеристикой
+  std::size_t getMinRIntervalIndex() const;
+
   void setIntervalR(size_t index, T R);
 
   // Количество интервалов
@@ -204,6 +209,20 @@ inline std::size_t TInterval<T>::getMaxRIntervalIndex() const
     [](const Interval& a, const Interval& b) {
       return a.R < b.R;
     });
+
+  return std::distance(intervals.begin(), it);
+}
+
+template<class T>
+inline std::size_t TInterval<T>::getMinRIntervalIndex() const 
+{
+  if (intervals.empty())
+    throw std::runtime_error("No intervals available");
+
+  auto it = std::min_element(intervals.begin(), intervals.end(),
+  [](const Interval& a, const Interval& b) {
+    return a.R < b.R;
+  });
 
   return std::distance(intervals.begin(), it);
 }
