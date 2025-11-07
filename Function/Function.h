@@ -22,7 +22,6 @@ public:
   TFunction();
   TFunction(FunctionType f, const TPoint<T, N>& lower, const TPoint<T, N>& upper, bool findMax = false);
 
-  // Установить функцию и границы
   void setFunction(FunctionType f);
   void setBounds(const TPoint<T, N>& lower, const TPoint<T, N>& upper);
   void setMaximization(bool findMax);
