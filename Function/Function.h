@@ -14,7 +14,6 @@ private:
   TPoint<T, N> upperBound;
   bool maximization;
 
-  // Вспомогательная функция для инверсии
   T applyInversion(T value) const {
     return maximization ? -value : value;
   }
