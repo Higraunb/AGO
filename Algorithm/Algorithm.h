@@ -1,4 +1,6 @@
+
 #include "Function.h"
+#include <math.h>
 template<class T, size_t N>
 class TAlgorithm
 {
@@ -22,8 +24,9 @@ private:
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               size_t r_, FunctionType func_);
+    TAlgorithm(double eps_, size_t r_, TFunction<T, N> func_);
     ~TAlgorithm();
-    void AGPStronginaMin();
+    double AGPStronginaMin();
     void AGPStronginaMax();
 };
 
@@ -44,12 +47,24 @@ inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upper
 }
 
 template <class T, size_t N>
+inline TAlgorithm<T, N>::TAlgorithm(double eps_, size_t r_, TFunction<T, N> func_)
+{
+    if(eps_ >= 1)
+        throw std::invalid_argument("eps >= 1");
+    if(r_ < 2)
+        throw std::invalid_argument("r < 2");
+    eps = eps_;
+    r = r_;
+    func = func_;
+}
+
+template <class T, size_t N>
 inline TAlgorithm<T, N>::~TAlgorithm()
 {
 }
 
 template <class T, size_t N>
-inline void TAlgorithm<T, N>::AGPStronginaMin()
+inline double TAlgorithm<T, N>::AGPStronginaMin()
 {
     func.setMaximization(false);
     do
@@ -90,10 +105,11 @@ inline void TAlgorithm<T, N>::AGPStronginaMin()
     double x0 = interval.getLeft(maxIndex);
     double x1 = interval.getRigth(maxIndex);
     TPoint<T, N> resX = (func.denormalize(TPoint<T, N>(x0)) + func.denormalize(TPoint<T, N>(x1)))/2;
-    T resY = func(resX);
+    double resY = func(resX);
     cout << "xr = " << resX << endl;
     cout << "fr = " << resY << endl;
     cout << "Iterations = " << iteration << endl;
+    return resY;
 }
 
 template <class T, size_t N>
@@ -110,7 +126,7 @@ inline void TAlgorithm<T, N>::AGPStronginaMax()
         zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(i)));
         xi = interval.getRigth(i);
         xi1 = interval.getLeft(i);
-        M = max(M, abs(zi - zi1) / (xi - xi1));
+        M = std::max(M, abs(zi - zi1) / (xi - xi1));
     }
     if (M == 0)
         L = 1;
@@ -139,7 +155,7 @@ inline void TAlgorithm<T, N>::AGPStronginaMax()
     double x1 = interval.getRigth(maxIndex);
     TPoint<T, N> resX = (func.denormalize(TPoint<T, N>(x0)) + func.denormalize(TPoint<T, N>(x1)))/2;
     T resY = func(resX);
-    cout << "xr = " << resX << endl;
-    cout << "fr = " << -1 * resY << endl;
-    cout << "Iterations = " << iteration << endl;
+    std::cout << "xr = " << resX << endl;
+    std::cout << "fr = " << -1 * resY << endl;
+    std::cout << "Iterations = " << iteration << endl;
 }

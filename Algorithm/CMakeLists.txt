@@ -2,6 +2,7 @@
 file(GLOB srcs "*.cpp")#Добавляем в переменную srcs все файлы с расширением .h
 
 add_library(${talgorithmlib} STATIC ${srcs} ${hdrs})
+
 target_link_libraries(${talgorithmlib} ${tpointlib})
 target_link_libraries(${talgorithmlib} ${tintervallib})
 target_link_libraries(${talgorithmlib} ${tfunctionlib})

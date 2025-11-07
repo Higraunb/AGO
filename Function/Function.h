@@ -4,11 +4,12 @@
 #include "Interval.h"
 
 template<class T, std::size_t N>
-class TFunction {
-public:
-  using FunctionType = std::function<T(const TPoint<T, N>&)>;
+class TFunction 
+{
+
 
 private:
+  using FunctionType = std::function<T(const TPoint<T, N>&)>;
   FunctionType func;
   TPoint<T, N> lowerBound;
   TPoint<T, N> upperBound;
@@ -38,7 +39,6 @@ public:
   TPoint<T, N> denormalize(const TPoint<T, N>& point) const;
 
   // Вычислить значение функции в точке (в реальных координатах)
-  // Автоматически инвертирует если режим максимизации
   T operator()(const TPoint<T, N>& point) const;
 
   // Вычислить значение функции в нормированной точке [0, 1]^N

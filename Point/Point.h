@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <numeric>
 #include <sstream>
+using namespace std;
 
 template<class T, std::size_t N>
 class TPoint

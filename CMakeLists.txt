@@ -9,7 +9,8 @@ set(application AGOAPP) #Переменная с именем приложени
 set(talgorithmlib TAlgorithmLibrary)
 set(tfunctionlib TFunctionLibrary)
 set(tintervallib TIntervalLibrary)
-set(tpointlib TPointLibrary)   
+set(tpointlib TPointLibrary)
+   
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "Configs" FORCE)
@@ -22,7 +23,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Algorithm)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Function)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Interval)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Point)
-
 
 add_subdirectory(Algorithm)
 add_subdirectory(Function)
