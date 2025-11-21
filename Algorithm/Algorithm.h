@@ -1,4 +1,7 @@
 #include "Function.h"
+#include <map>
+using namespace std;
+
 template<class T, size_t N>
 class TAlgorithm
 {
@@ -19,13 +22,34 @@ private:
     size_t indexInteravlWhithMinR;
     double newPoint;
     size_t iteration;
+    std::vector<double> allPoint;
+    TPoint<T, N> resX;
+    T resY;
 public:
+    TAlgorithm();
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               size_t r_, FunctionType func_);
     ~TAlgorithm();
+
+    T GetLowerBound();
+    T GetUpperBound();
+    FunctionType GetFunc(){return func;}
+    double GetResX(){return resX[0];}
+    double GetResY(){return resY;}
+    size_t GetCountIteration(){return iteration;}
+    vector<double> GetAllPoint(){return allPoint;}
     void AGPStronginaMin();
     void AGPStronginaMax();
 };
+
+template<class T, size_t N>
+TAlgorithm<T, N>::TAlgorithm()
+{
+    func = TFunction<T,N>([](const TPoint<T, N>& x){return x[0];},TPoint<T,N>(0),TPoint<T,N>(1));
+    eps = 0.01;
+    r = 2;
+    iteration = 0;
+}
 
 template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
@@ -52,6 +76,7 @@ template <class T, size_t N>
 inline void TAlgorithm<T, N>::AGPStronginaMin()
 {
     func.setMaximization(false);
+    allPoint.clear();
     do
     {
     M = 0;
@@ -83,23 +108,27 @@ inline void TAlgorithm<T, N>::AGPStronginaMin()
     xi = interval.getRigth(indexInteravlWhithMaxR);
     xi1 = interval.getLeft(indexInteravlWhithMaxR);
     newPoint = ((xi1 + xi) / 2) - ((zi - zi1) / (2 * L));
+    TPoint<T,N> realNewPoint = func.denormalize(TPoint<T,N>(newPoint));
+    allPoint.push_back(realNewPoint[0]);
     interval.split(newPoint);
     } 
     while (interval.getLength(interval.getMaxRIntervalIndex()) > eps);
+
     size_t maxIndex = interval.getMaxRIntervalIndex();
     double x0 = interval.getLeft(maxIndex);
     double x1 = interval.getRigth(maxIndex);
-    TPoint<T, N> resX = (func.denormalize(TPoint<T, N>(x0)) + func.denormalize(TPoint<T, N>(x1)))/2;
-    T resY = func(resX);
-    cout << "xr = " << resX << endl;
-    cout << "fr = " << resY << endl;
-    cout << "Iterations = " << iteration << endl;
+    resX = (func.denormalize(TPoint<T, N>(x0)) + func.denormalize(TPoint<T, N>(x1)))/2;
+    resY = func(resX);
+    // cout << "xr = " << resX << endl;
+    // cout << "fr = " << resY << endl;
+    // cout << "Iterations = " << iteration << endl;
 }
 
 template <class T, size_t N>
 inline void TAlgorithm<T, N>::AGPStronginaMax()
 {
-    func.setMaximization(true);
+    allPoint.clear();
+    func.setMaximization(true);   
     do
     {
     M = 0;
@@ -131,15 +160,18 @@ inline void TAlgorithm<T, N>::AGPStronginaMax()
     xi = interval.getRigth(indexInteravlWhithMaxR);
     xi1 = interval.getLeft(indexInteravlWhithMaxR);
     newPoint = ((xi1 + xi) / 2) - ((zi - zi1) / (2 * L));
+    TPoint<T,N> realNewPoint = func.denormalize(TPoint<T,N>(newPoint));
+    allPoint.push_back(realNewPoint[0]);
     interval.split(newPoint);
     } 
     while (interval.getLength(interval.getMaxRIntervalIndex()) > eps);
+
     size_t maxIndex = interval.getMaxRIntervalIndex();
     double x0 = interval.getLeft(maxIndex);
     double x1 = interval.getRigth(maxIndex);
-    TPoint<T, N> resX = (func.denormalize(TPoint<T, N>(x0)) + func.denormalize(TPoint<T, N>(x1)))/2;
-    T resY = func(resX);
-    cout << "xr = " << resX << endl;
-    cout << "fr = " << -1 * resY << endl;
-    cout << "Iterations = " << iteration << endl;
+    resX = (func.denormalize(TPoint<T, N>(x0)) + func.denormalize(TPoint<T, N>(x1)))/2;
+    resY = func(resX);
+    // cout << "xr = " << resX << endl;
+    // cout << "fr = " << -1 * resY << endl;
+    // cout << "Iterations = " << iteration << endl;
 }
