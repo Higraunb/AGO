@@ -1,4 +1,3 @@
-#include "Point.h"
 #include <vector>
 #include <stdexcept>
 #include <algorithm>

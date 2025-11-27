@@ -1,5 +1,6 @@
- file(GLOB hdrs "*.h*") #Добавляем в переменную hdrs все файлы с расширением .h
-file(GLOB srcs "*.cpp")#Добавляем в переменную srcs все файлы с расширением .h
+add_library(Interval
+    Interval.h
+    Interval.cpp
+)
 
-add_library(${tintervallib} STATIC ${srcs} ${hdrs})
-target_link_libraries(${tintervallib} ${tpointlib})
+target_include_directories(Interval PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

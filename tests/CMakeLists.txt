@@ -18,7 +18,7 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.cpp
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp)
 
 add_executable(${PROJECT_NAME_STR} ${SRC_FILES})
-
+target_link_libraries(main PRIVATE Algoritm Point Interval test)
 target_link_libraries(${PROJECT_NAME_STR} 
     TAlgorithmLibrary
     TFunctionLibrary

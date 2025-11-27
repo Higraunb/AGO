@@ -1,5 +1,6 @@
-#include "Function.h"
-#include "IOptProblem.cpp"
+#include "Point.h"
+#include "Interval.h"
+#include "C:\Users\Misha\Desktop\le\proga\Lebedev\AGO\tests\src\IOptProblem.hpp"
 
 template<class T, std::size_t N>
 std::vector<T>& normalize(const TPoint<T, N>& point)
@@ -32,7 +33,7 @@ class TAlgorithm
 private:
     //using FunctionType = std::function<T(const TPoint<T, N>&)>;
     //TFunction<T, N> func;
-    IOptProblem func;
+    IOptProblem* func;
     TInterval<double> interval;
     double eps;
     size_t r;
@@ -49,15 +50,14 @@ private:
     size_t iteration;
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-              size_t r_, IOptProblem func_);
+              size_t r_, IOptProblem* func_);
     ~TAlgorithm();
     void AGPStronginaMin();
     void AGPStronginaMax();
 };
-
 template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-              size_t r_, IOptProblem func_)
+              size_t r_, IOptProblem* func_)
 {
     // if(lowerBound_ >= upperBound_)
     //     throw std::invalid_argument("lowerBound >= upperBound");
