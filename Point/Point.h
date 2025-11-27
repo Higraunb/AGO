@@ -1,4 +1,4 @@
-#include <array>
+#include <vector>
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
@@ -9,12 +9,12 @@ template<class T, std::size_t N>
 class TPoint
 {
 private:
-  std::array<T, N> coords;
+  std::vector<T> coords;
 
 public:
   TPoint();
-  explicit TPoint(const std::array<T, N>& values);
-  explicit TPoint(std::array<T, N>&& values);
+  explicit TPoint(const std::vector<T>& values);
+  explicit TPoint(std::vector<T>&& values);
 
   template<class... Args>
   explicit TPoint(Args... args);
@@ -57,8 +57,8 @@ public:
 
   TPoint projectOn(const TPoint& other) const;
 
-  const std::array<T, N>& data() const;
-  std::array<T, N>& data();
+  const std::vector<T>& data() const;
+  std::vector<T>& data();
 
   template<class O, std::size_t M>
   friend std::ostream& operator << (std::ostream& out, const TPoint<O, M>& other);
@@ -70,11 +70,11 @@ TPoint<T, N>::TPoint() : coords{}
 {}
 
 template<class T, std::size_t N>
-TPoint<T, N>::TPoint(const std::array<T, N>& values) : coords(values) 
+TPoint<T, N>::TPoint(const std::vector<T>& values) : coords(values) 
 {}
 
 template<class T, std::size_t N>
-TPoint<T, N>::TPoint(std::array<T, N>&& values) : coords(std::move(values)) 
+TPoint<T, N>::TPoint(std::vector<T>&& values) : coords(std::move(values)) 
 {}
 
 template<class T, std::size_t N>
@@ -303,13 +303,13 @@ TPoint<T, N> TPoint<T, N>::projectOn(const TPoint& other) const
 }
 
 template<class T, std::size_t N>
-const std::array<T, N>& TPoint<T, N>::data() const 
+const std::vector<T>& TPoint<T, N>::data() const 
 { 
   return coords; 
 }
 
 template<class T, std::size_t N>
-std::array<T, N>& TPoint<T, N>::data() 
+std::vector<T>& TPoint<T, N>::data() 
 { 
   return coords;
 }
