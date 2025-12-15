@@ -47,7 +47,7 @@ public:
 
   // Получить интервал с максимальной характеристикой
   Interval getMaxRInterval() const;
-  T getRigth(size_t index) const;
+  T getRight(size_t index) const;
   T getLeft(size_t index) const;
   T getLength(size_t index) const;
   // Получить индекс интервала с максимальной характеристикой
@@ -180,7 +180,7 @@ inline TInterval<T>::getMaxRInterval() const
 }
 
 template <class T>
-inline T TInterval<T>::getRigth(size_t index) const
+inline T TInterval<T>::getRight(size_t index) const
 {
   return intervals[index].right;
 }

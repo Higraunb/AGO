@@ -24,10 +24,10 @@ public:
 
   constexpr std::size_t size() const;
 
-  auto begin();
+  /*auto begin();
   auto end();
   auto begin() const;
-  auto end() const;
+  auto end() const;*/
 
   TPoint operator+(const TPoint& other) const;
   TPoint operator-(const TPoint& other) const;
@@ -55,7 +55,7 @@ public:
   TPoint normalized() const;
   void normalize();
 
-  TPoint projectOn(const TPoint& other) const;
+  //TPoint projectOn(const TPoint& other) const;
 
   const std::vector<T>& data() const;
   std::vector<T>& data();
@@ -107,7 +107,7 @@ constexpr std::size_t TPoint<T, N>::size() const
   return N; 
 }
 
-template<class T, std::size_t N>
+/*template<class T, std::size_t N>
 auto TPoint<T, N>::begin() 
 { 
   return coords.begin(); 
@@ -129,7 +129,7 @@ template<class T, std::size_t N>
 auto TPoint<T, N>::end() const 
 { 
   return coords.end();
-}
+}*/
 
 // ����������� �������������� ��������
 template<class T, std::size_t N>
@@ -269,11 +269,11 @@ TPoint<T, N>::cross(const TPoint& other) const {
   );
 }
 
-template<class T, std::size_t N>
+/*template<class T, std::size_t N>
 T TPoint<T, N>::norm() const 
 {
   return std::sqrt(squaredNorm());
-}
+}*/
 
 template<class T, std::size_t N>
 T TPoint<T, N>::distance(const TPoint& other) const {
@@ -295,12 +295,12 @@ void TPoint<T, N>::normalize()
   *this = normalized();
 }
 
-template<class T, std::size_t N>
+/*template<class T, std::size_t N>
 TPoint<T, N> TPoint<T, N>::projectOn(const TPoint& other) const
 {
   T scale = this->dot(other) / other.squaredNorm();
   return other * scale;
-}
+}*/
 
 template<class T, std::size_t N>
 const std::vector<T>& TPoint<T, N>::data() const 
