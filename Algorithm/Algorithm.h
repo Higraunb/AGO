@@ -1,6 +1,6 @@
 #include "Point.h"
 #include "Interval.h"
-#include "C:\Users\Misha\Desktop\le\proga\Lebedev\AGO\tests\src\IOptProblem.hpp"
+#include "IOptProblem.hpp"
 
 template<class T, std::size_t N>
 std::vector<T>& normalize(const TPoint<T, N>& point)
@@ -67,7 +67,7 @@ inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upper
         throw std::invalid_argument("r < 2");
     eps = eps_;
     r = r_;
-    func = func_
+    func = func_;
     iteration = 0;
 }
 

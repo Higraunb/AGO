@@ -1,7 +1,7 @@
-add_library(Function
+add_library(TFunction
     Function.h
     Function.cpp
 )
 
-target_include_directories(Function PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(Function PUBLIC Point Interval)
+target_include_directories(TFunction PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(TFunction PUBLIC Point Interval)

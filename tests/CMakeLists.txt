@@ -1,27 +1,46 @@
-cmake_minimum_required(VERSION 3.10...3.31)
+# Папки src и sample_src находятся ВНУТРИ tests, поэтому используем CMAKE_CURRENT_SOURCE_DIR
+file(GLOB SRC_FILES 
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Hill/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Shekel/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+)
 
-set(PROJECT_NAME_STR builder_sample)
+# Отладка - выведем найденные файлы
+message(STATUS "Source files for tests library:")
+foreach(file ${SRC_FILES})
+    message(STATUS "  ${file}")
+endforeach()
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/)
+# Проверка что файлы найдены
+if(NOT SRC_FILES)
+    message(FATAL_ERROR "No source files found in ${CMAKE_CURRENT_SOURCE_DIR}/sample_src or ${CMAKE_CURRENT_SOURCE_DIR}/src")
+endif()
 
-file(GLOB SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.cpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.h
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.hpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS/*.hpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS/*.cpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin/*.hpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin/*.cpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Hill/*.cpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Shekel/*.cpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp)
+add_library(tests ${SRC_FILES})
 
-add_executable(${PROJECT_NAME_STR} ${SRC_FILES})
-target_link_libraries(main PRIVATE Algoritm Point Interval test)
-target_link_libraries(${PROJECT_NAME_STR} 
-    TAlgorithmLibrary
-    TFunctionLibrary
-    TIntervalLibrary
-    TPointLibrary
+# Публичные include директории для библиотеки
+target_include_directories(tests PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Hill
+    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Shekel
+)
+
+# Линкуем с другими библиотеками проекта
+target_link_libraries(tests PUBLIC 
+    Algorithm
+    TFunction
+    Interval
+    Point
 )
