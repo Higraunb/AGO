@@ -3,7 +3,7 @@
 #include "IOptProblem.hpp"
 
 template<class T, std::size_t N>
-std::vector<T>& normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
+std::vector<T> normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
 {
   TPoint<T, N> normalized;
   for (std::size_t i = 0; i < N; ++i) {
@@ -17,7 +17,7 @@ std::vector<T>& normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBo
 }
 
 template<class T, std::size_t N>
-std::vector<T>& denormalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
+std::vector<T> denormalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
 {
   TPoint<T, N> denormalized;
   for (std::size_t i = 0; i < N; ++i) {
@@ -54,15 +54,13 @@ public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               size_t r_, IOptProblem* func_);
     ~TAlgorithm();
-    void AGPStronginaMin();
-    void AGPStronginaMax();
+    std::vector<T> AGPStronginaMin();
+    std::vector<T> AGPStronginaMax();
 };
 template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               size_t r_, IOptProblem* func_)
 {
-    if(lowerBound_ >= upperBound_)
-        throw std::invalid_argument("lowerBound >= upperBound");
     if(eps_ >= 1)
         throw std::invalid_argument("eps >= 1");
     if(r_ < 2)
@@ -81,7 +79,7 @@ inline TAlgorithm<T, N>::~TAlgorithm()
 }
 
 template <class T, size_t N>
-inline void TAlgorithm<T, N>::AGPStronginaMin()
+inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMin()
 {
     //func.setMaximization(false);
     do
@@ -127,17 +125,20 @@ inline void TAlgorithm<T, N>::AGPStronginaMin()
     size_t maxIndex = interval.getMaxRIntervalIndex();
     double x0 = interval.getLeft(maxIndex);
     double x1 = interval.getRight(maxIndex);
-    T resX = (denormalize(TPoint<T, N>(x0), lowerBound, upperBound)[0] + denormalize(TPoint<T, N>(x1), lowerBound, upperBound)[0])/2;
+    T tmp1 = denormalize(TPoint<T, N>(x0), lowerBound, upperBound)[0];
+    T tmp2 = denormalize(TPoint<T, N>(x1), lowerBound, upperBound)[0];
+    T resX = (tmp1 + tmp2)/2;
     std::vector<T> xd(1);
     xd[0] = resX;
     T resY = func->ComputeFunction(xd);
-    std::cout << "xr = " << resX << std::endl;
-    std::cout << "fr = " << resY << std::endl;
-    std::cout << "Iterations = " << iteration << std::endl;
+    return std::vector<T>({resY, resX, (double) iteration});
+    // std::cout << "xr = " << resX << std::endl;
+    // std::cout << "fr = " << resY << std::endl;
+    // std::cout << "Iterations = " << iteration << std::endl;
 }
 
 template <class T, size_t N>
-inline void TAlgorithm<T, N>::AGPStronginaMax()
+inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
 {
     //func.setMaximization(true);
     do
@@ -187,7 +188,8 @@ inline void TAlgorithm<T, N>::AGPStronginaMax()
     std::vector<T> xd(1);
     xd[0] = resX;
     T resY = func->ComputeFunction(xd);
-    std::cout << "xr = " << resX << std::endl;
-    std::cout << "fr = " << -1 * resY << std::endl;
-    std::cout << "Iterations = " << iteration << std::endl;
+    return std::vector({resY, resX, (double) iteration});
+    // std::cout << "xr = " << resX << std::endl;
+    // std::cout << "fr = " << -1 * resY << std::endl;
+    // std::cout << "Iterations = " << iteration << std::endl;
 }

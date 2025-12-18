@@ -52,13 +52,15 @@ public:
   T norm() const;
   T distance(const TPoint& other) const;
 
+  void resize(std::size_t newSize) { coords.resize(newSize); }
+
   TPoint normalized() const;
   void normalize();
 
   //TPoint projectOn(const TPoint& other) const;
 
   const std::vector<T>& data() const;
-  std::vector<T>& data();
+  std::vector<T> data();
 
   template<class O, std::size_t M>
   friend std::ostream& operator << (std::ostream& out, const TPoint<O, M>& other);
@@ -66,8 +68,10 @@ public:
 
 
 template<class T, std::size_t N>
-TPoint<T, N>::TPoint() : coords{} 
-{}
+TPoint<T, N>::TPoint() 
+{
+  coords.resize(N);
+}
 
 template<class T, std::size_t N>
 TPoint<T, N>::TPoint(const std::vector<T>& values) : coords(values) 
@@ -309,7 +313,7 @@ const std::vector<T>& TPoint<T, N>::data() const
 }
 
 template<class T, std::size_t N>
-std::vector<T>& TPoint<T, N>::data() 
+std::vector<T> TPoint<T, N>::data() 
 { 
   return coords;
 }
