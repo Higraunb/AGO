@@ -131,10 +131,10 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMin()
     std::vector<T> xd(1);
     xd[0] = resX;
     T resY = func->ComputeFunction(xd);
-    return std::vector<T>({resY, resX, (double) iteration});
     // std::cout << "xr = " << resX << std::endl;
     // std::cout << "fr = " << resY << std::endl;
     // std::cout << "Iterations = " << iteration << std::endl;
+    return std::vector<T>({resY, resX, (double) iteration});
 }
 
 template <class T, size_t N>
@@ -188,8 +188,8 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
     std::vector<T> xd(1);
     xd[0] = resX;
     T resY = func->ComputeFunction(xd);
-    return std::vector({resY, resX, (double) iteration});
     // std::cout << "xr = " << resX << std::endl;
     // std::cout << "fr = " << -1 * resY << std::endl;
     // std::cout << "Iterations = " << iteration << std::endl;
+    return std::vector({resY, resX, (double) iteration});
 }
