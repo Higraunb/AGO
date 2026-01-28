@@ -4,12 +4,13 @@
 #include <algorithm>
 #include <numeric>
 #include <sstream>
+#include <array>
 
 template<class T, std::size_t N>
 class TPoint
 {
 private:
-  std::vector<T> coords;
+  std::array<T, N> coords;
 
 public:
   TPoint();
@@ -24,10 +25,7 @@ public:
 
   constexpr std::size_t size() const;
 
-  /*auto begin();
-  auto end();
-  auto begin() const;
-  auto end() const;*/
+  std::vector<T> toVector() const;
 
   TPoint operator+(const TPoint& other) const;
   TPoint operator-(const TPoint& other) const;
@@ -57,8 +55,6 @@ public:
   TPoint normalized() const;
   void normalize();
 
-  //TPoint projectOn(const TPoint& other) const;
-
   const std::vector<T>& data() const;
   std::vector<T> data();
 
@@ -70,12 +66,21 @@ public:
 template<class T, std::size_t N>
 TPoint<T, N>::TPoint() 
 {
-  coords.resize(N);
+  coords.fill(0);
 }
 
 template<class T, std::size_t N>
-TPoint<T, N>::TPoint(const std::vector<T>& values) : coords(values) 
-{}
+std::vector<T> TPoint<T, N>::toVector() const {
+  return std::vector<T>(coords.begin(), coords.end());
+}
+
+template<class T, std::size_t N>
+TPoint<T, N>::TPoint(const std::vector<T>& values) 
+{
+  if (values.size() != N) 
+    throw std::invalid_argument("Vector size does not match point dimension");
+  std::copy(values.begin(), values.end(), coords.begin());
+}
 
 template<class T, std::size_t N>
 TPoint<T, N>::TPoint(std::vector<T>&& values) : coords(std::move(values)) 
@@ -88,7 +93,6 @@ TPoint<T, N>::TPoint(Args... args) : coords{ static_cast<T>(args)... }
   static_assert(sizeof...(args) == N, "Wrong number of arguments");
 }
 
-// ����������� ������� �������
 template<class T, std::size_t N>
 T& TPoint<T, N>::operator[](std::size_t i) 
 {
@@ -111,31 +115,6 @@ constexpr std::size_t TPoint<T, N>::size() const
   return N; 
 }
 
-/*template<class T, std::size_t N>
-auto TPoint<T, N>::begin() 
-{ 
-  return coords.begin(); 
-}
-
-template<class T, std::size_t N>
-auto TPoint<T, N>::end() 
-{ 
-  return coords.end();
-}
-
-template<class T, std::size_t N>
-auto TPoint<T, N>::begin() const 
-{ 
-  return coords.begin(); 
-}
-
-template<class T, std::size_t N>
-auto TPoint<T, N>::end() const 
-{ 
-  return coords.end();
-}*/
-
-// ����������� �������������� ��������
 template<class T, std::size_t N>
 TPoint<T, N> TPoint<T, N>::operator+(const TPoint& other) const 
 {
@@ -217,7 +196,6 @@ TPoint<T, N>& TPoint<T, N>::operator/=(T scalar)
   return *this;
 }
 
-// ����������� �������� ������
 template<class T, std::size_t N>
 TPoint<T, N> TPoint<T, N>::operator-() const 
 {
@@ -228,7 +206,6 @@ TPoint<T, N> TPoint<T, N>::operator-() const
   return result;
 }
 
-// ����������� �������� ���������
 template<class T, std::size_t N>
 bool TPoint<T, N>::operator==(const TPoint& other) const 
 {
@@ -273,12 +250,6 @@ TPoint<T, N>::cross(const TPoint& other) const {
   );
 }
 
-/*template<class T, std::size_t N>
-T TPoint<T, N>::norm() const 
-{
-  return std::sqrt(squaredNorm());
-}*/
-
 template<class T, std::size_t N>
 T TPoint<T, N>::distance(const TPoint& other) const {
   return (*this - other).norm();
@@ -298,13 +269,6 @@ void TPoint<T, N>::normalize()
 {
   *this = normalized();
 }
-
-/*template<class T, std::size_t N>
-TPoint<T, N> TPoint<T, N>::projectOn(const TPoint& other) const
-{
-  T scale = this->dot(other) / other.squaredNorm();
-  return other * scale;
-}*/
 
 template<class T, std::size_t N>
 const std::vector<T>& TPoint<T, N>::data() const 

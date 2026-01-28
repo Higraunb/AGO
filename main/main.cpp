@@ -14,7 +14,7 @@ int main()
   double eps = 0.01;
   double r = 0;
   vector<double> res;
-  for (size_t i = 0; i < 1; i++)
+  for (size_t i = 0; i < 100; i++)
   {
     cout << i + 1 <<"\n";
     r = 10;

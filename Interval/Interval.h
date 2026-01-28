@@ -97,30 +97,24 @@ template<class T>
 std::pair<typename TInterval<T>::Interval, typename TInterval<T>::Interval> 
 TInterval<T>::split(T x) 
 {
-  // Находим интервал, содержащий точку x
   auto it = findInterval(x);
   
   if (it == intervals.end()) {
     throw std::out_of_range("Point x is not within any interval");
   }
 
-  // Сохраняем границы текущего интервала
   T left = it->left;
   T right = it->right;
 
-  // Проверяем, что точка внутри интервала (не на границах)
   if (std::abs(x - left) < 1e-10 || std::abs(x - right) < 1e-10) {
     throw std::invalid_argument("Point x coincides with interval boundary");
   }
 
-  // Создаём два новых интервала
   Interval left_interval(left, x);
   Interval right_interval(x, right);
 
-  // Вычисляем индекс для вставки
   std::size_t idx = std::distance(intervals.begin(), it);
 
-  // Удаляем старый интервал и вставляем два новых на его место
   intervals.erase(it);
   intervals.insert(intervals.begin() + idx, {left_interval, right_interval});
 
@@ -150,6 +144,7 @@ inline TInterval<T>::findInterval(T x)
       return it;
     }
   }
+  
   return intervals.end();
 }
 

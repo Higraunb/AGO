@@ -13,7 +13,7 @@ std::vector<T> normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBou
     }
     normalized[i] = (point[i] - lowerBound[i]) / range;
   }
-  return normalized.data();
+  return normalized.toVector();
 }
 
 template<class T, std::size_t N>
@@ -24,15 +24,13 @@ std::vector<T> denormalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerB
     T range = upperBound[i] - lowerBound[i];
     denormalized[i] = lowerBound[i] + point[i] * range;
   }
-  return denormalized.data();
+  return denormalized.toVector();
 }
 
 template<class T, size_t N>
 class TAlgorithm
 {
 private:
-    //using FunctionType = std::function<T(const TPoint<T, N>&)>;
-    //TFunction<T, N> func;
     IOptProblem* func;
     TInterval<double> interval;
     double eps;
@@ -81,15 +79,13 @@ inline TAlgorithm<T, N>::~TAlgorithm()
 template <class T, size_t N>
 inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMin()
 {
-    //func.setMaximization(false);
     do
     {
     M = 0;
     iteration++;
+    // Calculate Leipshitz constant 
     for (size_t i = 0; i < interval.size(); i++)
     {
-        //zi = func.evaluateNormalized(TPoint<T,N>(interval.getRight(i)));
-        //zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(i)));
         zi = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
         zi1 = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
         xi = interval.getRight(i);
@@ -100,27 +96,24 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMin()
         L = 1;
     else
         L = r * M;
+    // Calculate characteristics R for each interval
     for (size_t i = 0; i < interval.size(); i++)
     {
-        //zi = func.evaluateNormalized(TPoint<T,N>(interval.getRight(i)));
-        //zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(i)));
         zi = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
         zi1 = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
         xi = interval.getRight(i);
         xi1 = interval.getLeft(i);
-        R = L * (xi - xi1) + (pow(zi - zi1, 2) / (L * (xi - xi1))) - 2 * (zi + zi1);
+        R = L * (xi - xi1) + ((zi - zi1) * (zi - zi1) / (L * (xi - xi1))) - 2 * (zi + zi1);
         interval.setIntervalR(i, R);
     }
     indexInteravlWhithMaxR = interval.getMaxRIntervalIndex();
-    //zi = func.evaluateNormalized(TPoint<T,N>(interval.getRight(indexInteravlWhithMaxR)));
-    //zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(indexInteravlWhithMaxR)));
     zi = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(indexInteravlWhithMaxR)), lowerBound, upperBound));
     zi1 = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(indexInteravlWhithMaxR)), lowerBound, upperBound));
     xi = interval.getRight(indexInteravlWhithMaxR);
     xi1 = interval.getLeft(indexInteravlWhithMaxR);
     newPoint = ((xi1 + xi) / 2) - ((zi - zi1) / (2 * L));
     interval.split(newPoint);
-    } 
+    }
     while (interval.getLength(interval.getMaxRIntervalIndex()) > eps);
     size_t maxIndex = interval.getMaxRIntervalIndex();
     double x0 = interval.getLeft(maxIndex);
@@ -131,24 +124,18 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMin()
     std::vector<T> xd(1);
     xd[0] = resX;
     T resY = func->ComputeFunction(xd);
-    // std::cout << "xr = " << resX << std::endl;
-    // std::cout << "fr = " << resY << std::endl;
-    // std::cout << "Iterations = " << iteration << std::endl;
     return std::vector<T>({resY, resX, (double) iteration});
 }
 
 template <class T, size_t N>
 inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
 {
-    //func.setMaximization(true);
     do
     {
     M = 0;
     iteration++;
     for (size_t i = 0; i < interval.size(); i++)
     {
-        //zi = func.evaluateNormalized(TPoint<T,N>(interval.getRight(i)));
-        //zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(i)));
         zi = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
         zi1 = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
         xi = interval.getRight(i);
@@ -161,8 +148,6 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
         L = r * M;
     for (size_t i = 0; i < interval.size(); i++)
     {
-        //zi = func.evaluateNormalized(TPoint<T,N>(interval.getRight(i)));
-        //zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(i)));
         zi = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
         zi1 = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
         xi = interval.getRight(i);
@@ -171,8 +156,6 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
         interval.setIntervalR(i, R);
     }
     indexInteravlWhithMaxR = interval.getMaxRIntervalIndex();
-    //zi = func.evaluateNormalized(TPoint<T,N>(interval.getRight(indexInteravlWhithMaxR)));
-    //zi1 = func.evaluateNormalized(TPoint<T,N>(interval.getLeft(indexInteravlWhithMaxR)));
     zi = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(indexInteravlWhithMaxR)), lowerBound, upperBound));
     zi1 = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(indexInteravlWhithMaxR)), lowerBound, upperBound));
     xi = interval.getRight(indexInteravlWhithMaxR);
@@ -188,8 +171,5 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
     std::vector<T> xd(1);
     xd[0] = resX;
     T resY = func->ComputeFunction(xd);
-    // std::cout << "xr = " << resX << std::endl;
-    // std::cout << "fr = " << -1 * resY << std::endl;
-    // std::cout << "Iterations = " << iteration << std::endl;
     return std::vector({resY, resX, (double) iteration});
 }
