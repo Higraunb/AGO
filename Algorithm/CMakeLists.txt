@@ -9,4 +9,4 @@ target_include_directories(Algorithm PUBLIC
     ${CMAKE_SOURCE_DIR}/sample_src
 )
 
-target_link_libraries(Algorithm PUBLIC Point Interval TFunction tests)
+target_link_libraries(Algorithm PUBLIC Point Interval tests)
