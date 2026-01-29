@@ -40,7 +40,6 @@ target_include_directories(tests PUBLIC
 # Линкуем с другими библиотеками проекта
 target_link_libraries(tests PUBLIC 
     Algorithm
-    TFunction
     Interval
     Point
 )
