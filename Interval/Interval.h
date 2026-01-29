@@ -31,39 +31,29 @@ public:
   TInterval();
   explicit TInterval(T left, T right);
 
-  // Добавить начальный интервал
   void initialize(T left, T right);
 
-  // Разбить интервал, содержащий точку x
   std::pair<Interval, Interval> split(T x);
 
-  // Получить все интервалы
   const std::vector<Interval>& getIntervals() const;
   std::vector<Interval>& getIntervals();
 
-  // Найти интервал, содержащий точку x
   typename std::vector<Interval>::iterator findInterval(T x);
   typename std::vector<Interval>::const_iterator findInterval(T x) const;
 
-  // Получить интервал с максимальной характеристикой
   Interval getMaxRInterval() const;
   T getRight(size_t index) const;
   T getLeft(size_t index) const;
   T getLength(size_t index) const;
-  // Получить индекс интервала с максимальной характеристикой
   std::size_t getMaxRIntervalIndex() const;
-  // Получить индекс интервала с минимальной характеристикой
   std::size_t getMinRIntervalIndex() const;
 
   void setIntervalR(size_t index, T R);
 
-  // Количество интервалов
   std::size_t size() const;
 
-  // Очистить все интервалы
   void clear();
-
-  // Проверка на пустоту
+  
   bool empty() const;
 
   template<class U>

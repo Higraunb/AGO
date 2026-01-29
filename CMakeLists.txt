@@ -10,7 +10,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_subdirectory(Algorithm)
-add_subdirectory(Function)
 add_subdirectory(Interval)
 add_subdirectory(Point)
 add_subdirectory(main)

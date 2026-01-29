@@ -48,6 +48,7 @@ private:
     size_t indexInteravlWhithMinR;
     double newPoint;
     size_t iteration;
+    std::vector<int> index_new_interval(2);
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               size_t r_, IOptProblem* func_);
@@ -69,6 +70,8 @@ inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upper
     iteration = 0;
     lowerBound = lowerBound_;
     upperBound = upperBound_;
+    index_new_interval[0] = 0;
+    index_new_interval[1] = 1;
 }
 
 template <class T, size_t N>
@@ -97,7 +100,7 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMin()
     else
         L = r * M;
     // Calculate characteristics R for each interval
-    for (size_t i = 0; i < interval.size(); i++)
+    for (auto& i : index_new_interval)
     {
         zi = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
         zi1 = func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
@@ -146,7 +149,7 @@ inline std::vector<T> TAlgorithm<T, N>::AGPStronginaMax()
         L = 1;
     else
         L = r * M;
-    for (size_t i = 0; i < interval.size(); i++)
+    for (auto& i : index_new_interval)
     {
         zi = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
         zi1 = -func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
