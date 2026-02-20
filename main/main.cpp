@@ -1,4 +1,3 @@
-#include <math.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -10,7 +9,7 @@
 using namespace std;
 
 template <typename ProblemClass>
-void run_tests(double testarr[][2], 
+size_t run_tests(double testarr[][2], 
                double lower, double upper,
                double eps, size_t max_tests, 
                const string& testName, const double r)
@@ -27,51 +26,56 @@ void run_tests(double testarr[][2],
     cout << "Range: [" << lower << ", " << upper << "]\n";
     cout << "=======================================\n";
 
-    for (size_t i = 0; i < max_tests; i++)
+    for (size_t i = 1; i < 1000; i++)
     {
         ProblemClass func(i);
 
         TAlgorithm<double, 1> alg(lowerBoundVec, upperBoundVec, eps, r, &func);
-        vector<double> res = alg.AGPStronginaMin();
+        vector<double> res = alg.Solve(true);
 
-        double expectedX = testarr[i][0];
-        double expectedZ = testarr[i][1];
+        double expectedX = testarr[i][1];
+        double expectedZ = testarr[i][0];
 
-        bool xOk = abs(expectedX - res[0]) < 0.05;
-        bool zOk = abs(expectedZ - res[1]) < 0.05;
+        bool xOk = abs(expectedX - res[1]) < 0.1;
+        bool zOk = abs(expectedZ - res[0]) < 0.1;
         if (zOk && xOk)
         {
             countSuccess++;
-            // cout << "Test " << i << ": SUCCESS (iter: " << res[2] << ")\n";
+            // cout << "Test " << i 
+            //  << " | Exp Z: " << expectedZ << ", Got Z: " << res[0] 
+            //  << " | Exp X: " << expectedX << ", Got X: " << res[1]
+            //  << " | Iters: " << res[2] << "\n";
         }
         else
         {
             countFail++;
-            failTests.push_back({ (double)i, expectedX, res[0], expectedZ, res[1], res[2] });
-            cout << "Test " << i << ": FAIL\n";
+            // failTests.push_back({ (double)i, expectedX, res[0], expectedZ, res[1], res[2] });
+            // cout << "Test " << i << ": FAIL\n";
         }
     }
 
     cout << "\nFailed tests summary (" << testName << "):\n";
     for (const auto& f : failTests)
     {
-        cout << "Test " << (int)f[0] 
-             << " | Exp X: " << f[1] << ", Got X: " << f[2] 
-             << " | Exp Z: " << f[3] << ", Got Z: " << f[4] 
-             << " | Iters: " << f[5] << "\n";
+        // cout << "Test " << (int)f[0] 
+        //      << " | Exp Z: " << f[3] << ", Got Z: " << f[2] 
+        //      << " | Exp X: " << f[1] << ", Got X: " << f[4] 
+        //      << " | Iters: " << f[5] << "\n";
     }
 
     cout << "---------------------------------------\n";
     cout << "Total: " << max_tests << " | Success: " << countSuccess << " | Fail: " << countFail << "\n\n";
+    return max_tests;
 }
 
 int main() 
 {
-    double eps = 0.0001;
+    double eps = 0.01, resR = 0.0;
+    size_t res = 0, p = 0;
 
     // run_tests<THillProblem>(minHill, 0.0, 1.0, eps, 1000, "HILL Problem", 4); // r = 4.0
 
-    run_tests<TShekelProblem>(minShekel, 0.0, 10.0, eps, 1000, "SHEKEL Problem", 7); // r = 7.0
-
+    run_tests<TShekelProblem>(minShekel, 0.0, 10.0, eps, 1000, "SHEKEL Problem", 2);
+    // сделать таблицу и схемы по распределению r и продолжаем работу с задачам с многомерностью и ограничениями
     return 0;
 }

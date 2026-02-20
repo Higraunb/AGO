@@ -1,35 +1,35 @@
-# Папки src и sample_src находятся ВНУТРИ tests, поэтому используем CMAKE_CURRENT_SOURCE_DIR
-file(GLOB SRC_FILES 
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin/*.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Hill/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Shekel/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp
+# ==========================================
+# ЦЕЛЬ 1: Библиотека интерфейсов (OptProblem)
+# Собираем файлы из папки src/
+# ==========================================
+file(GLOB OPT_PROBLEM_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-# Отладка - выведем найденные файлы
-message(STATUS "Source files for tests library:")
-foreach(file ${SRC_FILES})
-    message(STATUS "  ${file}")
-endforeach()
+add_library(OptProblem ${OPT_PROBLEM_SRC})
 
-# Проверка что файлы найдены
-if(NOT SRC_FILES)
-    message(FATAL_ERROR "No source files found in ${CMAKE_CURRENT_SOURCE_DIR}/sample_src or ${CMAKE_CURRENT_SOURCE_DIR}/src")
-endif()
-
-add_library(tests ${SRC_FILES})
-
-# Публичные include директории для библиотеки
-target_include_directories(tests PUBLIC 
+# Делаем папку src доступной для всех, кто подключит эту либу
+target_include_directories(OptProblem PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+
+# ==========================================
+# ЦЕЛЬ 2: Библиотека задач (TestProblems)
+# Собираем файлы из папки sample_src/
+# ==========================================
+file(GLOB_RECURSE TEST_PROBLEMS_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/sample_src/*.h"
+)
+
+add_library(TestProblems ${TEST_PROBLEMS_SRC})
+
+# Указываем пути к заголовкам
+target_include_directories(TestProblems PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/sample_src
     ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/GKLS
     ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Grishagin
@@ -37,9 +37,5 @@ target_include_directories(tests PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sample_src/Shekel
 )
 
-# Линкуем с другими библиотеками проекта
-target_link_libraries(tests PUBLIC 
-    Algorithm
-    Interval
-    Point
-)
+# Задачи (Hill, Shekel) наследуются от IOptProblem, поэтому линкуем первую цель
+target_link_libraries(TestProblems PUBLIC OptProblem)

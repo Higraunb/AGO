@@ -1,12 +1,8 @@
-add_library(Algorithm
-    Algorithm.h
-    Algorithm.cpp
-)
+add_library(Algorithm INTERFACE)
 
-target_include_directories(Algorithm PUBLIC 
+target_include_directories(Algorithm INTERFACE 
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/sample_src
 )
 
-target_link_libraries(Algorithm PUBLIC Point Interval tests)
+# Подключаем интерфейсы, которые мы определили в tests/CMakeLists.txt
+target_link_libraries(Algorithm INTERFACE Point Interval OptProblem)
