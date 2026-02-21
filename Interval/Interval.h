@@ -13,8 +13,9 @@ public:
     T left;
     T right;
     T R;  
-    
-    Interval(T l, T r) : left(l), right(r), R(0) {}
+    T zLeft;
+    T zRight;
+    Interval(T l, T r, T zl, T zr) : left(l), right(r), zLeft(zl), zRight(zr), R(0) {}
     
     T length() const { return right - left; }
     T center() const { return (left + right) / 2; }
@@ -31,9 +32,9 @@ public:
   TInterval();
   explicit TInterval(T left, T right);
 
-  void initialize(T left, T right);
+  void initialize(T left, T right, T zLeft, T zRight);
 
-  std::pair<Interval, Interval> split(T x);
+  std::size_t splitByIndex(std::size_t index, T x, T zx);
 
   const std::vector<Interval>& getIntervals() const;
   std::vector<Interval>& getIntervals();
@@ -45,6 +46,8 @@ public:
   T getRight(size_t index) const;
   T getLeft(size_t index) const;
   T getLength(size_t index) const;
+  T getZLeft(size_t index) const { return intervals[index].zLeft; }
+  T getZRight(size_t index) const { return intervals[index].zRight; }
   std::size_t getMaxRIntervalIndex() const;
   std::size_t getMinRIntervalIndex() const;
 
@@ -64,7 +67,7 @@ public:
 template<class T>
 TInterval<T>::TInterval() 
 {
-  initialize(0, 1);
+  initialize(0, 1, 1, 1);
 }
 
 template<class T>
@@ -74,42 +77,31 @@ TInterval<T>::TInterval(T left, T right)
 }
 
 template<class T>
-void TInterval<T>::initialize(T left, T right) 
+void TInterval<T>::initialize(T left, T right, T zLeft, T zRight) 
 {
   if (left >= right) {
     throw std::invalid_argument("Left boundary must be less than right boundary");
   }
   intervals.clear();
-  intervals.push_back(Interval(left, right));
+  intervals.push_back(Interval(left, right, zLeft, zRight));
 }
 
 template<class T>
-std::pair<typename TInterval<T>::Interval, typename TInterval<T>::Interval> 
-TInterval<T>::split(T x) 
-{
-  auto it = findInterval(x);
-  
-  if (it == intervals.end()) {
-    throw std::out_of_range("Point x is not within any interval");
+std::size_t TInterval<T>::splitByIndex(std::size_t index, T x, T zx) 
+  {
+    if (index >= intervals.size()) throw std::out_of_range("Index out of range");
+
+    Interval& old = intervals[index];
+    T right = old.right;
+    T zRight = old.zRight;
+
+    old.right = x;
+    old.zRight = zx;
+
+    intervals.push_back(Interval(x, right, zx, zRight));
+
+    return intervals.size() - 1; 
   }
-
-  T left = it->left;
-  T right = it->right;
-
-  if (std::abs(x - left) < 1e-10 || std::abs(x - right) < 1e-10) {
-    throw std::invalid_argument("Point x coincides with interval boundary");
-  }
-
-  Interval left_interval(left, x);
-  Interval right_interval(x, right);
-
-  std::size_t idx = std::distance(intervals.begin(), it);
-
-  intervals.erase(it);
-  intervals.insert(intervals.begin() + idx, {left_interval, right_interval});
-
-  return {left_interval, right_interval};
-}
 
 template<class T>
 inline const std::vector<typename TInterval<T>::Interval>& 

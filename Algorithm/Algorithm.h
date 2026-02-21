@@ -1,6 +1,7 @@
 #include "Point.h"
 #include "Interval.h"
 #include "IOptProblem.hpp"
+#include <queue>
 
 template<class T, std::size_t N>
 std::vector<T> normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
@@ -34,7 +35,7 @@ private:
     IOptProblem* func;
     TInterval<double> interval;
     double eps;
-    size_t r;
+    double r;
     double R;
     double M;
     double L;
@@ -50,21 +51,20 @@ private:
     size_t iteration;
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-              size_t r_, IOptProblem* func_);
+              double r_, IOptProblem* func_);
     ~TAlgorithm();
     
-    // Единый метод для решения. По умолчанию ищет минимум.
-    std::vector<T> Solve(bool isMinimize = true); 
+    std::vector<T> Solve(size_t maxInteration, bool isMinimize = true); 
 };
 
 template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-              size_t r_, IOptProblem* func_)
+              double r_, IOptProblem* func_)
 {
     if(eps >= 1)
         throw std::invalid_argument("eps >= 1");
-    if(r_ < 2)
-        throw std::invalid_argument("r < 2");
+    if(r_ <= 1)
+        throw std::invalid_argument("r < 1");
     eps = eps_;
     r = r_;
     func = func_;
@@ -79,82 +79,116 @@ inline TAlgorithm<T, N>::~TAlgorithm()
 }
 
 template <class T, size_t N>
-inline std::vector<T> TAlgorithm<T, N>::Solve(bool isMinimize)
+inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinimize)
 {
-    // Определяем множитель. Для минимума 1.0, для максимума -1.0
     T sign = isMinimize ? 1.0 : -1.0;
+    double a = 0.0;
+    double b = 1.0;
 
-    T resX = denormalize(TPoint<T,N>(interval.getLeft(0)), lowerBound, upperBound)[0];
-    
-    // Умножаем результат функции на sign
-    T resZ_internal = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(0)), lowerBound, upperBound));
+    T za = sign * func->ComputeFunction(::denormalize<T,N>(TPoint<T,N>(a), lowerBound, upperBound));
+    T zb = sign * func->ComputeFunction(::denormalize<T,N>(TPoint<T,N>(b), lowerBound, upperBound));
+
+    interval.initialize(a, b, za, zb);
+
+    T resX = ::denormalize<T,N>(TPoint<T,N>(a), lowerBound, upperBound)[0];
+    T resZ_internal = za;
+    if (zb < resZ_internal)
+    {
+        resX = ::denormalize<T,N>(TPoint<T,N>(b), lowerBound, upperBound)[0];
+        resZ_internal = zb;
+    }
+
+    M = std::abs(zb - za) / (b - a);
+    L = (M == 0) ? 1.0 : r * M;
+    R = L * (b - a) + ((zb - za) * (zb - za) / (L * (b - a))) - 2 * (zb + za);
+    interval.setIntervalR(0, R);
+
+    std::priority_queue<std::pair<double, size_t>> pq;
+    pq.push({R, 0});
 
     do
     {
-        M = 0;
         iteration++;
         
-        // 1. Вычисление константы Липшица 
-        for (size_t i = 0; i < interval.size(); i++)
-        {
-            zi = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
-            zi1 = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
-            xi = interval.getRight(i);
-            xi1 = interval.getLeft(i);
-            
-            M = std::max(M, std::abs(zi - zi1) / (xi - xi1));
-            
-            if (zi < resZ_internal)
-            {
-                resX = denormalize(TPoint<T,N>(xi), lowerBound, upperBound)[0];
-                resZ_internal = zi;
-            }
-        }
+        indexInteravlWhithMaxR = pq.top().second;
+        pq.pop();
         
-        if (M == 0)
-            L = 1;
-        else
-            L = r * M;
-            
-        // 2. Вычисление характеристик R для каждого интервала
-        for (size_t i = 0; i < interval.size(); i++)
-        {
-            zi = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(i)), lowerBound, upperBound));
-            zi1 = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(i)), lowerBound, upperBound));
-            xi = interval.getRight(i);
-            xi1 = interval.getLeft(i);
-            
-            R = L * (xi - xi1) + ((zi - zi1) * (zi - zi1) / (L * (xi - xi1))) - 2 * (zi + zi1);
-            interval.setIntervalR(i, R);
-        }
-        
-        indexInteravlWhithMaxR = interval.getMaxRIntervalIndex();
-        
-        // 3. Выбор точки для нового испытания
-        zi = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getRight(indexInteravlWhithMaxR)), lowerBound, upperBound));
-        zi1 = sign * func->ComputeFunction(denormalize(TPoint<T,N>(interval.getLeft(indexInteravlWhithMaxR)), lowerBound, upperBound));
+        zi = interval.getZRight(indexInteravlWhithMaxR);
+        zi1 = interval.getZLeft(indexInteravlWhithMaxR);
         xi = interval.getRight(indexInteravlWhithMaxR);
         xi1 = interval.getLeft(indexInteravlWhithMaxR);
         
         newPoint = ((xi1 + xi) / 2) - ((zi - zi1) / (2 * L));
-        T newZ_internal = sign * func->ComputeFunction(denormalize(TPoint<T,N>(newPoint), lowerBound, upperBound));
+        T newZ_internal = sign * func->ComputeFunction(::denormalize<T,N>(TPoint<T,N>(newPoint), lowerBound, upperBound));
         
         if (newZ_internal < resZ_internal)
         {
-            resX = denormalize(TPoint<T,N>(newPoint), lowerBound, upperBound)[0];
+            resX = ::denormalize<T,N>(TPoint<T,N>(newPoint), lowerBound, upperBound)[0];
             resZ_internal = newZ_internal;
         }
-        
-        interval.split(newPoint);
-    }
-    while ((interval.getLength(interval.getMaxRIntervalIndex()) > eps) && (iteration < 1000));
 
-    // 4. Финальная проверка на последнем разбитом интервале
-    size_t maxIndex = interval.getMaxRIntervalIndex();
+        size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newPoint, newZ_internal);
+
+        // Проверяем, выросла ли константа M
+        double m1 = std::abs(newZ_internal - zi1) / (newPoint - xi1);
+        double m2 = std::abs(zi - newZ_internal) / (xi - newPoint);
+        double local_M = std::max(m1, m2);
+
+        bool m_changed = false;
+        if (local_M > M) 
+        {
+            M = local_M;
+            L = (M == 0) ? 1.0 : r * M;
+            m_changed = true;
+        }
+
+        if (m_changed) 
+        {
+            // т.к L изменилась пересчитываем все R
+            pq = std::priority_queue<std::pair<double, size_t>>(); 
+            for (size_t i = 0; i < interval.size(); i++)
+            {
+                double z_r = interval.getZRight(i);
+                double z_l = interval.getZLeft(i);
+                double x_r = interval.getRight(i);
+                double x_l = interval.getLeft(i);
+                
+                double new_R = L * (x_r - x_l) + ((z_r - z_l) * (z_r - z_l) / (L * (x_r - x_l))) - 2 * (z_r + z_l);
+                interval.setIntervalR(i, new_R);
+                pq.push({new_R, i});
+            }
+        } 
+        else 
+        {
+            // Пересчитываем R только для новых интервалов
+            size_t idx1 = indexInteravlWhithMaxR; 
+            size_t idx2 = right_half_idx;   
+            
+            double zl1 = interval.getZLeft(idx1);
+            double zr1 = interval.getZRight(idx1);
+            double xl1 = interval.getLeft(idx1);
+            double xr1 = interval.getRight(idx1);
+            double r1 = L * (xr1 - xl1) + ((zr1 - zl1) * (zr1 - zl1) / (L * (xr1 - xl1))) - 2 * (zr1 + zl1);
+            interval.setIntervalR(idx1, r1);
+            pq.push({r1, idx1});
+            
+            double zl2 = interval.getZLeft(idx2);
+            double zr2 = interval.getZRight(idx2);
+            double xl2 = interval.getLeft(idx2);
+            double xr2 = interval.getRight(idx2);
+            double r2 = L * (xr2 - xl2) + ((zr2 - zl2) * (zr2 - zl2) / (L * (xr2 - xl2))) - 2 * (zr2 + zl2);
+            interval.setIntervalR(idx2, r2);
+            pq.push({r2, idx2});
+        }
+
+    } 
+    while ((interval.getLength(pq.top().second) > eps) && (iteration < maxInteration));
+
+    size_t maxIndex = pq.top().second;
     double x0 = interval.getLeft(maxIndex);
     double x1 = interval.getRight(maxIndex);
-    T tmp1 = denormalize(TPoint<T, N>(x0), lowerBound, upperBound)[0];
-    T tmp2 = denormalize(TPoint<T, N>(x1), lowerBound, upperBound)[0];
+    T tmp1 = ::denormalize<T, N>(TPoint<T, N>(x0), lowerBound, upperBound)[0];
+    T tmp2 = ::denormalize<T, N>(TPoint<T, N>(x1), lowerBound, upperBound)[0];
     T tmpX = (tmp1 + tmp2) / 2;
     std::vector<T> xd(1);
     xd[0] = tmpX;
@@ -166,7 +200,6 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(bool isMinimize)
         resZ_internal = tmpZ_internal;
     }
     
-    // Возвращаем знак функции в исходное состояние, если искали максимум
     T finalZ = isMinimize ? resZ_internal : -resZ_internal;
     
     return std::vector<T>({finalZ, resX, (double)iteration});
