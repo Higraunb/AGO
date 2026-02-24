@@ -5,7 +5,7 @@ Copyright (C) 2018 Sovrasov V. - All Rights Reserved
  * You should have received a copy of the MIT license with
  * this file. If not visit https://opensource.org/licenses/MIT
 */
-#include "evolvent.hpp"
+#include "Evolvent.hpp"
 #include <cassert>
 #include <cmath>
 #include <algorithm>
