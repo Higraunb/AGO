@@ -34,7 +34,7 @@ struct FailedTest {
 };
 
 template <typename ProblemClass>
-TestStats run_single_r_test(double testarr[][2], double lower, double upper, double eps, size_t max_tests, double r)
+TestStats run_single_r_test(double testarr[][2], double lower, double upper, double eps, size_t max_tests, double r, int tightness_)
 {
     size_t countSuccess = 0;
     size_t countFail = 0;
@@ -48,7 +48,7 @@ TestStats run_single_r_test(double testarr[][2], double lower, double upper, dou
     for (size_t i = 1; i < max_tests; i++)
     {
         ProblemClass func(i);
-        TAlgorithm<double, 1> alg(lowerBoundVec, upperBoundVec, eps, r, &func);
+        TAlgorithm<double, 1> alg(lowerBoundVec, upperBoundVec, eps, r, &func, tightness_);
         vector<double> res = alg.Solve(1000, true); 
 
         double expectedX = testarr[i][1];
@@ -108,7 +108,8 @@ void run_experiment(double testarr[][2], double lower, double upper, double eps,
 
     for (double r = 1.5; r <= 8.01; r += 0.2) 
     {
-        TestStats stats = run_single_r_test<ProblemClass>(testarr, lower, upper, eps, max_tests, r);
+        int tightness = 1;
+        TestStats stats = run_single_r_test<ProblemClass>(testarr, lower, upper, eps, max_tests, r, tightness);
         
         file << r << ";" 
              << stats.successRate << ";" 
