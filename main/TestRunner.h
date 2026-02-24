@@ -108,7 +108,7 @@ void run_experiment(double testarr[][2], double lower, double upper, double eps,
 
     for (double r = 1.5; r <= 8.01; r += 0.2) 
     {
-        int tightness = 1;
+        int tightness = 3;
         TestStats stats = run_single_r_test<ProblemClass>(testarr, lower, upper, eps, max_tests, r, tightness);
         
         file << r << ";" 

@@ -227,10 +227,9 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
     
     T finalZ = isMinimize ? resZInternal : -resZInternal;
     std::vector<T> result;
+    result.push_back(finalZ);
     for (size_t i = 0; i < N; ++i) 
         result.push_back(bestPoint[i]);
-
-    result.push_back(finalZ);
     result.push_back(static_cast<T>(iteration));
     return result;
 }
