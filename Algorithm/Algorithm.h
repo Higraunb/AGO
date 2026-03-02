@@ -65,7 +65,7 @@ public:
 template <class T, size_t N>
 inline size_t TAlgorithm<T, N>::CalculateR(const size_t& LeipshitzConstant, const double& xRight, const double& xLeft, const double& zRight, const double& zLeft)
 {
-    double res = pow((xRight - xLeft), 1.0 / N) + ((zRight - zLeft) * (zRight - zLeft) / (L * pow((xRight - xLeft), 1.0 / N))) - 2 * (zRight + zLeft);
+    double res = (xRight - xLeft) + (zRight - zLeft) * (zRight - zLeft) / (L * (xRight - xLeft)) - 2 * (zRight + zLeft);
     return res;
 }
 
@@ -157,8 +157,8 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
         size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newX, newZInternal);
 
         // Проверяем, выросла ли константа M
-        double m1 = std::abs(newZInternal - zi1) / pow((newX - xi1), 1.0 / N);
-        double m2 = std::abs(zi - newZInternal) / pow((xi - newX), 1.0 / N);
+        double m1 = std::abs(newZInternal - zi1) / (newX - xi1);
+        double m2 = std::abs(zi - newZInternal) / (xi - newX);
         double local_M = std::max(m1, m2);
 
         bool m_changed = false;
