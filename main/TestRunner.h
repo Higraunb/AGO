@@ -60,7 +60,7 @@ TestStats run_single_r_test_2d(double lower, double upper, double eps, size_t ma
         TAlgorithm<double, 2> alg(lowerBoundVec, upperBoundVec, eps, r, &func, tightness);
         
         // Запускаем на 10000 итераций (многомерные задачи требуют больше шагов)
-        vector<double> res = alg.Solve(10000, true); 
+        vector<double> res = alg.Solve(40000, true); 
 
         // Достаем ожидаемые координаты X и Y из глобального массива Гришагина
         // Индекс массива начинается с 0, поэтому (i - 1)
@@ -94,7 +94,7 @@ TestStats run_single_r_test_2d(double lower, double upper, double eps, size_t ma
     }
 
     // Выводим информацию, если упало малое количество тестов (например, до 3)
-    if (countFail > 0 && countFail <= 3)
+    /*if (countFail > 0 && countFail <= 3)
     {
         cout << "  [!] Внимание: при r = " << fixed << setprecision(1) << r << " упало тестов: " << countFail << "\n";
         for (const auto& f : failures)
@@ -104,7 +104,7 @@ TestStats run_single_r_test_2d(double lower, double upper, double eps, size_t ma
                  << " | Получили: (" << setw(5) << f.gotX << ", " << setw(5) << f.gotY << ")"
                  << " | Z_Ожид: " << setw(8) << f.expZ << " | Z_Получ: " << setw(8) << f.gotZ << "\n";
         }
-    }
+    }*/
 
     double successRate = (double)countSuccess / max_tests * 100.0;
     double avgIter = countSuccess > 0 ? (double)totalIterations / countSuccess : 0.0;
@@ -130,22 +130,21 @@ void run_experiment_2d(double lower, double upper, double eps, size_t max_tests,
     cout << "============================================================\n";
 
     // Плотность сетки (эвольвенты) Пеано для 2D задач. Чем больше - тем точнее, но медленнее.
-    int tightness = 10; 
+    int tightness = 7;
 
-    for (double r = 1.5; r <= 8.1; r += 0.2) 
+    for (double r = 2.0; r <= 10.0; r += 0.2) 
     {
-        int tightness = 3;
         TestStats stats = run_single_r_test_2d<ProblemClass>(lower, upper, eps, max_tests, r, tightness);
         
         file << r << ";" 
-             << stats.successRate << ";" 
-             << stats.success << ";" 
-             << stats.fail << ";" 
-             << stats.avgIterations << "\n";
+            << stats.successRate << ";" 
+            << stats.success << ";" 
+            << stats.fail << ";" 
+            << stats.avgIterations << "\n";
 
-        cout << "Tested r = " << fixed << setprecision(1) << setw(3) << r 
-             << " | Rate: " << setw(6) << setprecision(2) << stats.successRate << "%"
-             << " | Avg Iters: " << setw(6) << setprecision(1) << stats.avgIterations << "\n";
+        cout << "Tested r = " << fixed << setprecision(1) << setw(3) << r
+            << " | Rate: " << setw(6) << setprecision(2) << stats.successRate << "%"
+            << " | Avg Iters: " << setw(6) << setprecision(1) << stats.avgIterations << "\n";
     }
     cout << "============================================================\n";
     cout << "Эксперимент завершен. Данные сохранены в " << filename << "\n\n";
