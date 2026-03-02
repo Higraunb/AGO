@@ -135,7 +135,7 @@ void run_experiment_2d(double lower, double upper, double eps, size_t max_tests,
     for (double r = 1.5; r <= 8.1; r += 0.2) 
     {
         int tightness = 3;
-        TestStats stats = run_single_r_test<ProblemClass>(testarr, lower, upper, eps, max_tests, r, tightness);
+        TestStats stats = run_single_r_test_2d<ProblemClass>(lower, upper, eps, max_tests, r, tightness);
         
         file << r << ";" 
              << stats.successRate << ";" 

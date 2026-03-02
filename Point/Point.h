@@ -16,7 +16,7 @@ public:
   TPoint();
   explicit TPoint(const std::vector<T>& values);
   explicit TPoint(std::vector<T>&& values);
-
+  explicit TPoint(const T (&arr)[N]);
   template<class... Args>
   explicit TPoint(Args... args);
 
@@ -72,6 +72,12 @@ TPoint<T, N>::TPoint()
 template<class T, std::size_t N>
 std::vector<T> TPoint<T, N>::toVector() const {
   return std::vector<T>(coords.begin(), coords.end());
+}
+
+template<class T, std::size_t N>
+TPoint<T, N>::TPoint(const T (&arr)[N])
+{
+  std::copy(std::begin(arr), std::end(arr), std::begin(coords));
 }
 
 template<class T, std::size_t N>

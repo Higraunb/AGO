@@ -51,17 +51,27 @@ private:
     size_t indexInteravlWhithMaxR;
     size_t indexInteravlWhithMinR;
     size_t iteration;
+    size_t CalculateR(const size_t& LeipshitzConstant, const double& xRight, const double& xLeft, const double& zRight, const double& zLeft);
+    
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               double r_, IOptProblem* func_, int tightness_);
+    
     ~TAlgorithm();
     
     std::vector<T> Solve(size_t maxInteration, bool isMinimize = true); 
 };
 
 template <class T, size_t N>
+inline size_t TAlgorithm<T, N>::CalculateR(const size_t& LeipshitzConstant, const double& xRight, const double& xLeft, const double& zRight, const double& zLeft)
+{
+    double res = pow((xRight - xLeft), 1.0 / N) + ((zRight - zLeft) * (zRight - zLeft) / (L * pow((xRight - xLeft), 1.0 / N))) - 2 * (zRight + zLeft);
+    return res;
+}
+
+template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-              double r_, IOptProblem* func_, int tightness_)
+                                    double r_, IOptProblem *func_, int tightness_)
 {
     if(eps >= 1)
         throw std::invalid_argument("eps >= 1");
@@ -97,12 +107,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
     evolvent.GetImage(a, pointAData);
     evolvent.GetImage(b, pointBData);
 
-    TPoint<T, N> pointA, pointB;
-    for (size_t i = 0; i < N; ++i) 
-    {
-        pointA[i] = static_cast<T>(pointAData[i]);
-        pointB[i] = static_cast<T>(pointBData[i]);
-    }
+    TPoint<T, N> pointA(pointAData), pointB(pointBData);
 
     T za = sign * func->ComputeFunction(pointA.toVector());
     T zb = sign * func->ComputeFunction(pointB.toVector());
@@ -117,9 +122,9 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
         resZInternal = zb;
     }
 
-    M = std::abs(zb - za) / (b - a);
+    M = std::abs(zb - za) / pow((b - a), 1.0 / N);
     L = (M == 0) ? 1.0 : r * M;
-    R = L * (b - a) + ((zb - za) * (zb - za) / (L * (b - a))) - 2 * (zb + za);
+    R = CalculateR(L, b, a, zb, za);
     interval.setIntervalR(0, R);
 
     std::priority_queue<std::pair<double, size_t>> pq;
@@ -140,9 +145,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
         newX = ((xi1 + xi) / 2) - ((zi - zi1) / (2 * L));
         double newPointData[N];
         evolvent.GetImage(newX, newPointData);
-        TPoint<T, N> newPoint;
-        for (size_t i = 0; i < N; ++i) 
-            newPoint[i] = static_cast<T>(newPointData[i]);
+        TPoint<T, N> newPoint (newPointData);
         T newZInternal = sign * func->ComputeFunction(newPoint.toVector());
         
         if (newZInternal < resZInternal)
@@ -154,8 +157,8 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
         size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newX, newZInternal);
 
         // Проверяем, выросла ли константа M
-        double m1 = std::abs(newZInternal - zi1) / (newX - xi1);
-        double m2 = std::abs(zi - newZInternal) / (xi - newX);
+        double m1 = std::abs(newZInternal - zi1) / pow((newX - xi1), 1.0 / N);
+        double m2 = std::abs(zi - newZInternal) / pow((xi - newX), 1.0 / N);
         double local_M = std::max(m1, m2);
 
         bool m_changed = false;
@@ -177,7 +180,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
                 double x_r = interval.getRight(i);
                 double x_l = interval.getLeft(i);
                 
-                double new_R = L * (x_r - x_l) + ((z_r - z_l) * (z_r - z_l) / (L * (x_r - x_l))) - 2 * (z_r + z_l);
+                double new_R = CalculateR(L, x_r, x_l, z_r, z_l);
                 interval.setIntervalR(i, new_R);
                 pq.push({new_R, i});
             }
@@ -192,7 +195,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
             double zr1 = interval.getZRight(idx1);
             double xl1 = interval.getLeft(idx1);
             double xr1 = interval.getRight(idx1);
-            double r1 = L * (xr1 - xl1) + ((zr1 - zl1) * (zr1 - zl1) / (L * (xr1 - xl1))) - 2 * (zr1 + zl1);
+            double r1 = CalculateR(L, xr1, xl1, zr1, zl1);
             interval.setIntervalR(idx1, r1);
             pq.push({r1, idx1});
             
@@ -200,7 +203,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
             double zr2 = interval.getZRight(idx2);
             double xl2 = interval.getLeft(idx2);
             double xr2 = interval.getRight(idx2);
-            double r2 = L * (xr2 - xl2) + ((zr2 - zl2) * (zr2 - zl2) / (L * (xr2 - xl2))) - 2 * (zr2 + zl2);
+            double r2 = CalculateR(L, xr2, xl2, zr2, zl2);
             interval.setIntervalR(idx2, r2);
             pq.push({r2, idx2});
         }
@@ -232,4 +235,4 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxInteration, bool isMinim
         result.push_back(bestPoint[i]);
     result.push_back(static_cast<T>(iteration));
     return result;
-}
+};
