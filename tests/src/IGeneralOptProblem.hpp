@@ -93,16 +93,19 @@ protected:
   vector<double> GetOptimumPoint() const;
   /// Get global minimum value
   double GetOptimumValue() const;
-
+ 
   /// Compute the value of the function number index at the point 
   virtual double Compute(int index, const vector<double>& y) const = 0;
 
   /// Compute the derivatives of the function number index at the point y
   /// If not specified, throws an exception
   virtual vector<double> ComputeDerivatives(int index, const vector<double>& y) const;
-
+  
+  
   IGeneralOptProblem();
 public:
+  virtual int GetConstraintsNumber() const { return mConstraintIndeces.size(); }
+  virtual double ComputePoint(const std::vector<double>& y, int& index) const = 0;
   IGeneralOptProblem(int dim, vector<double> loBound, vector<double> upBound, int probIndex = -1);
   /// Get dimension
   int GetDimension() const;

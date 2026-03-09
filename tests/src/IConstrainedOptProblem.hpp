@@ -116,7 +116,8 @@ public:
   /// Compute the value of the constraints at the point y, index is the number of the last computed constraint
   vector<double> ComputeConstraints(const vector<double>& y,
     EConstraintComputationType t, int &index) const;
-
+  
+  virtual double ComputePoint(const std::vector<double>& y, int& index) const override;
   /// Compute the derivatives of the constraint number index at the point y
   vector<double> ComputeConstraintDerivatives(int index, const vector<double>& y) const;
 

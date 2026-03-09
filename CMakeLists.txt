@@ -9,11 +9,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# --- НОВОЕ: Ищем OpenMP в системе ---
+find_package(OpenMP REQUIRED)
+
 add_subdirectory(Point)
 add_subdirectory(Interval)
-
 add_subdirectory(tests)
-
 add_subdirectory(Algorithm)
-
 add_subdirectory(main)

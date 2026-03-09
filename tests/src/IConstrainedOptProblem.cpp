@@ -792,6 +792,16 @@ vector<double> IConstrainedOptProblem::ComputeConstraints(const vector<double>& 
   return res;
 }
 
+double IConstrainedOptProblem::ComputePoint(const vector<double>& y, int& index) const
+{
+  vector<double> constr_vals = ComputeConstraints(y, cctIndexScheme, index);
+  
+  if (index < (int)mConstraintIndeces.size()) 
+    return constr_vals.back();
+     
+  return ComputeFunction(y); 
+}
+
 // ------------------------------------------------------------------------------------------------
 vector<double> IConstrainedOptProblem::ComputeConstraintDerivatives(int index,
   const vector<double>& y) const

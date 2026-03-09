@@ -2,6 +2,6 @@
 
 int main() 
 {
-    runAllTests();
+    runConstrainedTests();
     return 0;
 }

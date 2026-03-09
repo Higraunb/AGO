@@ -1,5 +1,5 @@
 #pragma once
-
+#include <omp.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -8,9 +8,10 @@
 #include <locale>
 #include <cmath>
 #include "Algorithm.h"
-
-// Включаем функции Гришагина
 #include "grishagin_function.hpp"
+#include <filesystem>
+#include "GKLSProblem.hpp"
+#include "GKLSConstrainedProblem.hpp"
 
 using namespace std;
 
@@ -25,6 +26,8 @@ struct TestStats {
     size_t fail;
     double successRate;
     double avgIterations;
+    double totalTimeSec;
+    double avgTimeSec;
 };
 
 // Обновленная структура для хранения данных упавшего теста (теперь есть X и Y)
@@ -37,6 +40,84 @@ struct FailedTest {
     double expY;
     double gotY;
 };
+
+template <size_t N>
+TestStats run_constrained_batch(double gkls_eps, double r, GKLSClass type, size_t max_tests, int tightness, int constrType)
+{
+    size_t countSuccess = 0;
+    size_t countFail = 0;
+    size_t totalIterations = 0;
+
+    TPoint<double, N> lowerBoundVec;
+    TPoint<double, N> upperBoundVec;
+    for (size_t i = 0; i < N; ++i) {
+        lowerBoundVec[i] = -1.0;
+        upperBoundVec[i] = 1.0;
+    }
+
+    // Пересчет эпсилон для эвольвенты
+    double alg_eps = std::pow(gkls_eps / 4.0, N); 
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Распараллеливаем цикл, аккумулируя статистику
+    #pragma omp parallel for reduction(+:countSuccess, countFail, totalIterations)
+    for (size_t i = 1; i <= max_tests; i++)
+    {
+        // Предполагается, что твой класс условной задачи называется TConstrainedOptProblem
+        // и принимает тип ограничения (constrType) в конструкторе
+        TGKLSConstrainedProblem func(
+        static_cast<EConstrainedProblemType>(constrType),
+        0.5,
+        0,
+        i,
+        N,
+        type,
+        TD
+        );
+        
+        TAlgorithm<double, N> alg(lowerBoundVec, upperBoundVec, alg_eps, r, &func, tightness);
+        
+        size_t max_iters = (N >= 4) ? 2000000 : 500000; 
+        vector<double> res = alg.Solve(max_iters, true); 
+
+        // Достаем координаты найденной точки (сдвиг на 1, так как res[0] - это Z)
+        vector<double> foundPoint(res.begin() + 1, res.begin() + 1 + N);
+        
+        // 1. Проверка на попадание в допустимую область
+        int finalIndex = 0;
+        func.ComputePoint(foundPoint, finalIndex);
+        bool isFeasible = (finalIndex == func.GetConstraintsNumber());
+
+        // 2. Проверка на близость к известному глобальному оптимуму
+        vector<double> opt_point = func.GetOptimumPoint();
+        bool isGlobalOptimum = true;
+        double max_dist = 0.0;
+        for (size_t d = 0; d < N; ++d) {
+            double dist = std::abs(foundPoint[d] - opt_point[d]);
+            if (dist > max_dist) max_dist = dist;
+        }
+        if (max_dist > gkls_eps) isGlobalOptimum = false;
+
+        // Точка успешна, ТОЛЬКО если она точная И не нарушает ограничения
+        if (isFeasible && isGlobalOptimum) {
+            countSuccess++;
+            totalIterations += (size_t)res[N + 1];
+        } else {
+            countFail++;
+        }
+    }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = end_time - start_time;
+    double totalTime = diff.count();
+    double avgTime = totalTime / max_tests;
+
+    double successRate = (double)countSuccess / max_tests * 100.0;
+    double avgIter = countSuccess > 0 ? (double)totalIterations / countSuccess : 0.0;
+
+    return {max_tests, countSuccess, countFail, successRate, avgIter, totalTime, avgTime};
+}
 
 template <typename ProblemClass>
 TestStats run_single_r_test_2d(double lower, double upper, double eps, size_t max_tests, double r, int tightness)
@@ -112,6 +193,78 @@ TestStats run_single_r_test_2d(double lower, double upper, double eps, size_t ma
     return {max_tests, countSuccess, countFail, successRate, avgIter};
 }
 
+inline void runConstrainedTests() 
+{
+    // Настройки для тестов (можно расширить по аналогии с GKLS)
+    vector<int>    dims    = { 2, 3, 4 };
+    vector<double> epss    = { 0.01, 0.01, 0.03 };
+    vector<string> shs     = { "simple", "hard", "simple" };
+    vector<double> rs      = { 4.5, 5.6, 4.5 };
+    
+    // Типы ограничений (зависит от твоего enum, обычно 0 - внутри, 2 - на границе)
+    vector<int> constrTypes = { 0, 2 }; 
+    vector<string> constrNames = { "InsideDomain", "OnBorder" };
+
+    std::string directoryName = "results";
+    std::filesystem::create_directories(directoryName);
+
+    string filename = directoryName + "/Constrained_GKLS_Results.csv";
+    ofstream file(filename);
+    if (file.is_open()) {
+        file.imbue(std::locale(file.getloc(), new CommaNumPunct()));
+        file << "Type;Dim;Class;eps;r;Success_Rate_%;Success_Count;Fail_Count;Avg_Iterations;Total_Time_s;Avg_Time_s\n";
+    }
+
+    cout << "============================================================\n";
+    cout << "  STARTING CONSTRAINED EXPERIMENTS\n";
+    cout << "============================================================\n";
+
+    for (size_t c = 0; c < constrTypes.size(); c++)
+    {
+        cout << "--- Testing Constraint Type: " << constrNames[c] << " ---\n";
+        
+        for (size_t i = 0; i < dims.size(); i++) 
+        {
+            int N = dims[i];
+            double gkls_eps = epss[i];
+            string sh0 = shs[i];
+            double r = rs[i];
+            
+            GKLSClass type = (sh0 == "simple") ? Simple : Hard;
+
+            int tightness = std::ceil(-std::log2(gkls_eps / 4.0));
+            if (tightness * N > 53) tightness = 53 / N; 
+
+            cout << "C_GKLS | Dim=" << N << " | " << setw(6) << sh0 
+                 << " | r=" << fixed << setprecision(1) << r 
+                 << " | tight=" << tightness << " ... ";
+            
+            TestStats stats;
+            
+            // Вызов нужной шаблонной функции
+            if (N == 2) stats = run_constrained_batch<2>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
+            else if (N == 3) stats = run_constrained_batch<3>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
+            else if (N == 4) stats = run_constrained_batch<4>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
+
+            if (file.is_open()) {
+                file << constrNames[c] << ";" << N << ";" << sh0 << ";" << gkls_eps << ";" << r << ";"
+                     << stats.successRate << ";" << stats.success << ";"
+                     << stats.fail << ";" << stats.avgIterations << ";"
+                     << stats.totalTimeSec << ";" << stats.avgTimeSec << "\n";
+            }
+            
+            cout << (stats.successRate == 100 ? "PERFECT!" : "Done.") 
+                 << " Rate: " << setw(5) << stats.successRate << "% | Iters: " 
+                 << fixed << setprecision(0) << stats.avgIterations 
+                 << " | Time: " << setprecision(2) << stats.totalTimeSec << "s\n";
+        }
+    }
+    
+    cout << "============================================================\n";
+    cout << "Эксперименты завершены. Результаты в " << filename << "\n\n";
+    if (file.is_open()) file.close();
+}
+
 template <typename ProblemClass>
 void run_experiment_2d(double lower, double upper, double eps, size_t max_tests, const string& testName, const string& filename)
 {
@@ -150,6 +303,130 @@ void run_experiment_2d(double lower, double upper, double eps, size_t max_tests,
     cout << "Эксперимент завершен. Данные сохранены в " << filename << "\n\n";
     
     file.close();
+}
+template <size_t N>
+TestStats run_gkls_batch(double gkls_eps, double r, GKLSClass type, size_t max_tests, int tightness)
+{
+    size_t countSuccess = 0;
+    size_t countFail = 0;
+    size_t totalIterations = 0;
+
+    TPoint<double, N> lowerBoundVec;
+    TPoint<double, N> upperBoundVec;
+    for (size_t i = 0; i < N; ++i) {
+        lowerBoundVec[i] = -1.0;
+        upperBoundVec[i] = 1.0;
+    }
+
+    double alg_eps = std::pow(gkls_eps / 4.0, N); 
+
+    // Запускаем таймер высокого разрешения перед началом пачки тестов
+    auto start_time = std::chrono::high_resolution_clock::now();
+    #pragma omp parallel for reduction(+:countSuccess, countFail, totalIterations)
+    for (size_t i = 1; i <= max_tests; i++)
+    {
+        TGKLSProblem func(i, N, type, TD);
+        TAlgorithm<double, N> alg(lowerBoundVec, upperBoundVec, alg_eps, r, &func, tightness);
+        
+        size_t max_iters = (N >= 4) ? 2000000 : 500000; 
+        vector<double> res = alg.Solve(max_iters, true); 
+
+        vector<double> opt_point = func.GetOptimumPoint();
+        
+        bool isOk = true;
+        double max_dist = 0.0;
+        for (size_t d = 0; d < N; ++d) {
+            double dist = std::abs(res[d + 1] - opt_point[d]);
+            if (dist > max_dist) max_dist = dist;
+        }
+        
+        if (max_dist > gkls_eps) isOk = false;
+
+        if (isOk) {
+            countSuccess++;
+            totalIterations += (size_t)res[N + 1];
+        } else {
+            countFail++;
+        }
+    }
+
+    // Останавливаем таймер
+    auto end_time = std::chrono::high_resolution_clock::now();
+    
+    // Вычисляем разницу в секундах (с дробной частью)
+    std::chrono::duration<double> diff = end_time - start_time;
+    double totalTime = diff.count();
+    double avgTime = totalTime / max_tests;
+
+    double successRate = (double)countSuccess / max_tests * 100.0;
+    double avgIter = countSuccess > 0 ? (double)totalIterations / countSuccess : 0.0;
+
+    return {max_tests, countSuccess, countFail, successRate, avgIter, totalTime, avgTime};
+}
+
+inline void runGKLSTests() 
+{
+    vector<double> dists   = { 0.9, 0.9, 0.66, 0.9, 0.66, 0.9, 0.66, 0.66, 0.9, 0.9, 0.9 };
+    vector<double> radiuss = { 0.2, 0.1, 0.2, 0.2, 0.2, 0.2, 0.3, 0.2, 0.2, 0.2, 0.2 };
+    vector<int>    dims    = { 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8 };
+    vector<double> epss    = { 0.01, 0.01, 0.01, 0.01, 0.03, 0.03, 0.03, 0.03, 0.0464, 0.0517, 0.0562 };
+    vector<string> shs     = { "simple", "hard", "simple", "hard", "simple", "hard", "simple", "hard", "simple", "simple", "simple" };
+    vector<double> rs      = { 4.5, 5.6, 4.5, 5.6, 4.5, 5.6, 4.5, 5.6, 5.6, 5.6, 5.6 };
+std::string directoryName = "results";
+    
+    std::filesystem::create_directories(directoryName);
+
+    string filename = directoryName + "/GKLS_Results.csv";
+
+    ofstream file(filename);
+    if (file.is_open()) {
+        file.imbue(std::locale(file.getloc(), new CommaNumPunct()));
+        file << "Dim;Class;eps;r;Success_Rate_%;Success_Count;Fail_Count;Avg_Iterations;Total_Time_s;Avg_Time_s\n";
+    }
+
+    cout << "============================================================\n";
+    cout << "  STARTING GKLS EXPERIMENTS (800 functions)\n";
+    cout << "============================================================\n";
+
+    for (int i = 0; i <= 7; i++) 
+    {
+        int N = dims[i];
+        double gkls_eps = epss[i];
+        string sh0 = shs[i];
+        double r = rs[i];
+        
+        GKLSClass type = (sh0 == "simple") ? Simple : Hard;
+
+        int tightness = std::ceil(-std::log2(gkls_eps / 4.0));
+        if (tightness * N > 53) tightness = 53 / N; 
+
+        cout << "GKLS | Dim=" << N << " | " << setw(6) << sh0 
+             << " | r=" << fixed << setprecision(1) << r 
+             << " | tight=" << tightness << " ... ";
+        
+        TestStats stats;
+        
+        if (N == 2) stats = run_gkls_batch<2>(gkls_eps, r, type, 100, tightness);
+        else if (N == 3) stats = run_gkls_batch<3>(gkls_eps, r, type, 100, tightness);
+        else if (N == 4) stats = run_gkls_batch<4>(gkls_eps, r, type, 100, tightness);
+        else if (N == 5) stats = run_gkls_batch<5>(gkls_eps, r, type, 100, tightness);
+
+        if (file.is_open()) {
+            file << N << ";" << sh0 << ";" << gkls_eps << ";" << r << ";"
+                 << stats.successRate << ";" << stats.success << ";"
+                 << stats.fail << ";" << stats.avgIterations << ";"
+                 << stats.totalTimeSec << ";" << stats.avgTimeSec << "\n";
+        }
+        
+        cout << (stats.successRate == 100 ? "PERFECT!" : "Done.") 
+             << " Rate: " << setw(5) << stats.successRate << "% | Iters: " 
+             << fixed << setprecision(0) << stats.avgIterations 
+             << " | Time: " << setprecision(2) << stats.totalTimeSec << "s\n";
+    }
+    
+    cout << "============================================================\n";
+    cout << "Эксперименты GKLS завершены. Результаты в " << filename << "\n\n";
+    if (file.is_open()) file.close();
 }
 
 inline void runAllTests() 

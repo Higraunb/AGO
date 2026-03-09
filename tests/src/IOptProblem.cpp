@@ -73,6 +73,12 @@ double IOptProblem::ComputeFunction(const vector<double>& y) const
   return Compute(mFunctionIndex, y);
 }
 
+double IOptProblem::ComputePoint(const std::vector<double> &y, int &index) const
+{
+  index = 0;
+  return Compute(0, y);
+}
+
 // ------------------------------------------------------------------------------------------------
 vector<double> IOptProblem::ComputeFunctionDerivatives(const vector<double>& y) const
 {

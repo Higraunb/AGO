@@ -32,6 +32,8 @@ public:
 
   /// Compute the value of the objective function at the point y
   double ComputeFunction(const vector<double>& y) const;
+  
+  virtual double ComputePoint(const std::vector<double>& y, int& index) const override;
 
   /// Compute the value of the objective function derivatives at the point y
   vector<double> ComputeFunctionDerivatives(const vector<double>& y) const;

@@ -3,6 +3,7 @@
 #include "IOptProblem.hpp"
 #include "Evolvent.hpp"
 #include <queue>
+#include <IGeneralOptProblem.hpp>
 
 /*template<class T, std::size_t N>
 std::vector<T> normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
@@ -33,13 +34,13 @@ template<class T, size_t N>
 class TAlgorithm
 {
 private:
-    IOptProblem* func;
+    IGeneralOptProblem* func;
     TInterval<double> interval;
     double eps;
     double r;
     double R;
-    double M;
-    double L;
+    std::vector<double> M;
+    std::vector<double> L;
     double zi;
     double zi1;
     double xi;
@@ -51,27 +52,103 @@ private:
     size_t indexInteravlWhithMaxR;
     size_t indexInteravlWhithMinR;
     size_t iteration;
-    double CalculateR(const size_t& LeipshitzConstant, const double& xRight, const double& xLeft, const double& zRight, const double& zLeft);
-    
+    double CalculateR(const TInterval<double>& interval, const size_t index);
+    double CalculateM(const TInterval<double>& interval, const size_t index);
+    double CalculateNewX(const TInterval<double>& interval, const size_t index);
+    void RebuildQueue(std::priority_queue<std::pair<double, size_t>>& pq, TInterval<double>& interval);
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-              double r_, IOptProblem* func_, int tightness_);
+              double r_, IGeneralOptProblem* func_, int tightness_);
     
     ~TAlgorithm();
     
     std::vector<T> Solve(size_t maxInteration, bool isMinimize = true); 
 };
 
+
 template <class T, size_t N>
-inline double TAlgorithm<T, N>::CalculateR(const size_t& LeipshitzConstant, const double& xRight, const double& xLeft, const double& zRight, const double& zLeft)
+inline double TAlgorithm<T, N>::CalculateR(const TInterval<double>& interval, const size_t index)
 {
-    double res = L * pow((xRight - xLeft), 1.0 / N) + ((zRight - zLeft) * (zRight - zLeft) / (L * pow((xRight - xLeft), 1.0 / N))) - 2 * (zRight + zLeft);
+    double xLeft = interval.getLeft(index);
+    double xRight = interval.getRight(index);
+    double zLeft = interval.getZLeft(index);
+    double zRight = interval.getZRight(index);
+    double vLeft = interval.getVLeft(index);
+    double vRight = interval.getVRight(index);
+    double res = 0.0;
+    if(vLeft == vRight)
+    {
+        res = pow((xRight - xLeft), 1.0 / N) + ((zRight - zLeft) * (zRight - zLeft)
+        / (L[vLeft] * L[vLeft] * pow((xRight - xLeft), 1.0 / N))) - 2 * (zRight + zLeft) / L[vLeft];
+    }
+    else if(vLeft > vRight)
+    {
+        res = pow((xRight - xLeft), 1.0 / N) - 2 * zRight / L[vRight];
+    }
+    else
+    {
+        res = pow((xRight - xLeft), 1.0 / N) - 2 * zLeft / L[vLeft];
+    }
+   
     return res;
 }
 
 template <class T, size_t N>
+inline double TAlgorithm<T, N>::CalculateM(const TInterval<double>& interval, const size_t index)
+{
+    double xLeft = interval.getLeft(index);
+    double xRight = interval.getRight(index);
+    double zLeft = interval.getZLeft(index);
+    double zRight = interval.getZRight(index);
+    double vLeft = interval.getVLeft(index);
+    double vRight = interval.getVRight(index);
+
+    if(vLeft == vRight)
+    {
+        double res = std::abs(zRight - zLeft) / pow((xRight - xLeft), 1.0 / N);
+        return res;
+    }
+    return -1.0;
+}
+
+template <class T, size_t N>
+inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval, const size_t index)
+{
+    double xLeft = interval.getLeft(index);
+    double xRight = interval.getRight(index);
+    double zLeft = interval.getZLeft(index);
+    double zRight = interval.getZRight(index);
+    double vLeft = interval.getVLeft(index);
+    double vRight = interval.getVRight(index);
+
+    double sgn = (zRight > zLeft) ? 1.0 : ((zRight < zLeft) ? -1.0 : 0.0);
+    double newX = 0.0;
+    if(vRight == vLeft)
+    {
+        newX = (xLeft + xRight) / 2.0 - sgn * pow(std::abs(zRight - zLeft) / L[vLeft], N) / 2.0;
+    }
+    else 
+    {
+        newX = (xLeft + xRight) / 2.0; 
+    }
+    return newX;
+}
+
+template <class T, size_t N>
+inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double, size_t>>& pq, TInterval<double> &interval)
+{
+    pq = std::priority_queue<std::pair<double, size_t>>();
+    for (size_t i = 0; i < interval.size(); i++)
+    {
+        double new_R = CalculateR(interval, i);
+        interval.setIntervalR(i, new_R);
+        pq.push({new_R, i});
+    }
+}
+
+template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
-                                    double r_, IOptProblem *func_, int tightness_)
+                                    double r_, IGeneralOptProblem* func_, int tightness_)
 {
     if(eps >= 1)
         throw std::invalid_argument("eps >= 1");
@@ -101,115 +178,103 @@ template <class T, size_t N>
 inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimize)
 {
     T sign = isMinimize ? 1.0 : -1.0;
+    // calculate first interval
     double ua = 0.0;
     double ub = 1.0;
 
-    // Преобразуем u в x для вызова evolvent.GetImage
-    double xa = pow(ua, 1.0/N);
-    double xb = pow(ub, 1.0/N); 
-   
+    int evalIndex = func->GetConstraintsNumber();
+
+    M.assign(evalIndex + 1, 0.0);
+    L.assign(evalIndex + 1, 1.0);
+
     double pointAData[N], pointBData[N];
-    evolvent.GetImage(xa, pointAData);
-    evolvent.GetImage(xb, pointBData);
-
+    evolvent.GetImage(ua, pointAData);
+    evolvent.GetImage(ub, pointBData);
+    int va = 0, vb = 0;
     TPoint<T, N> pointA(pointAData), pointB(pointBData);
-    T za = sign * func->ComputeFunction(pointA.toVector());
-    T zb = sign * func->ComputeFunction(pointB.toVector());
+    T za = sign * func->ComputePoint(std::vector<double>(pointAData, pointAData + N), va);
+    T zb = sign * func->ComputePoint(std::vector<double>(pointBData, pointBData + N), vb);
 
-    interval.initialize(ua, ub, za, zb);  // интервал хранит u-координаты
+    interval.initialize(ua, ub, za, zb, va, vb);
 
     TPoint<T, N> bestPoint = pointA;
     T resZInternal = za;
-    if (zb < resZInternal)
+    if (vb == evalIndex) 
     {
-        bestPoint = pointB;
-        resZInternal = zb;
+        if (zb < resZInternal)
+        {
+            bestPoint = pointB;
+            resZInternal = zb;
+        }
     }
 
-    // Оценка липшицевой константы по переменной u
-    M = std::abs(zb - za) / (ub - ua);
-    L = (M == 0) ? 1.0 : r * M;
-    R = L * (ub - ua) + ((zb - za) * (zb - za)) / (L * (ub - ua)) - 2 * (zb + za);
+    M[va] = CalculateM(interval, 0);
+    L[va] = (M[va] == 0) ? 1.0 : r * M[va];
+    
+    R = CalculateR(interval, 0);
     interval.setIntervalR(0, R);
-
+    
     std::priority_queue<std::pair<double, size_t>> pq;
     pq.push({R, 0});
-
     do
     {
         iteration++;
+        // get max R
         indexInteravlWhithMaxR = pq.top().second;
         pq.pop();
 
-        zi = interval.getZRight(indexInteravlWhithMaxR);
-        zi1 = interval.getZLeft(indexInteravlWhithMaxR);
-        double ui = interval.getRight(indexInteravlWhithMaxR);
-        double ui1 = interval.getLeft(indexInteravlWhithMaxR);
-
-        // Новая точка в переменной u (классическая формула для липшицевой функции)
-        double newU = (ui1 + ui) / 2 - (zi - zi1) / (2 * L);
-        // Преобразуем в x для получения многомерной точки
-        double newX = pow(newU, N);
+        // calculate a new point
+        double newU = CalculateNewX(interval, indexInteravlWhithMaxR);
+        int xEvalIndex = 0;
+        // check value in point
         double newPointData[N];
-        evolvent.GetImage(newX, newPointData);
+        evolvent.GetImage(newU, newPointData);
         TPoint<T, N> newPoint(newPointData);
-        T newZInternal = sign * func->ComputeFunction(newPoint.toVector());
+        double newZInternal = sign * func->ComputePoint(vector<double>(newPointData, newPointData + N), xEvalIndex);;
 
-        if (newZInternal < resZInternal)
+        if (xEvalIndex == evalIndex) 
         {
-            bestPoint = newPoint;
-            resZInternal = newZInternal;
+            if (newZInternal < resZInternal)
+            {
+                bestPoint = newPoint;
+                resZInternal = newZInternal;
+            }
         }
+        // split the interval and get new two intervals
 
-        size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newU, newZInternal);
-
-        // Оценка локальной липшицевой константы (по u)
-        double m1 = std::abs(newZInternal - zi1) / (newU - ui1);
-        double m2 = std::abs(zi - newZInternal) / (ui - newU);
-        double local_M = std::max(m1, m2);
-
+        size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newU, newZInternal, xEvalIndex);
         bool m_changed = false;
-        if (local_M > M)
+        // check has M changed
+        // if yes, calculate for each new R 
+        double m1 = CalculateM(interval, indexInteravlWhithMaxR);
+        if((m1 > 0) && (M[xEvalIndex] < m1))
         {
-            M = local_M;
-            L = (M == 0) ? 1.0 : r * M;
+            M[xEvalIndex] = m1;
+            L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
+            RebuildQueue(pq, interval);
+            m_changed = true;
+        }
+        double m2 = CalculateM(interval, right_half_idx);
+        if((m2 > 0) && (M[xEvalIndex] < m2))
+        {
+            M[xEvalIndex] = m2;
+            L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
+            RebuildQueue(pq, interval);
             m_changed = true;
         }
 
-        if (m_changed)
+        // if no, calculate R for new intrefal
+        if(!m_changed)
         {
-            // Пересчёт всех R
-            pq = std::priority_queue<std::pair<double, size_t>>();
-            for (size_t i = 0; i < interval.size(); i++)
-            {
-                double z_r = interval.getZRight(i);
-                double z_l = interval.getZLeft(i);
-                double u_r = interval.getRight(i);
-                double u_l = interval.getLeft(i);
-                double new_R = L * (u_r - u_l) + ((z_r - z_l) * (z_r - z_l)) / (L * (u_r - u_l)) - 2 * (z_r + z_l);
-                interval.setIntervalR(i, new_R);
-                pq.push({new_R, i});
-            }
-        }
-        else
-        {
-            // Пересчёт только для двух новых интервалов
             size_t idx1 = indexInteravlWhithMaxR;
             size_t idx2 = right_half_idx;
 
-            double zl1 = interval.getZLeft(idx1);
-            double zr1 = interval.getZRight(idx1);
-            double ul1 = interval.getLeft(idx1);
-            double ur1 = interval.getRight(idx1);
-            double r1 = L * (ur1 - ul1) + ((zr1 - zl1) * (zr1 - zl1)) / (L * (ur1 - ul1)) - 2 * (zr1 + zl1);
+            
+            double r1 = CalculateR(interval, idx1);
             interval.setIntervalR(idx1, r1);
             pq.push({r1, idx1});
 
-            double zl2 = interval.getZLeft(idx2);
-            double zr2 = interval.getZRight(idx2);
-            double ul2 = interval.getLeft(idx2);
-            double ur2 = interval.getRight(idx2);
-            double r2 = L * (ur2 - ul2) + ((zr2 - zl2) * (zr2 - zl2)) / (L * (ur2 - ul2)) - 2 * (zr2 + zl2);
+            double r2 = CalculateR(interval, idx2);
             interval.setIntervalR(idx2, r2);
             pq.push({r2, idx2});
         }
@@ -220,14 +285,15 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     double u0 = interval.getLeft(maxIndex);
     double u1 = interval.getRight(maxIndex);
     double uMid = (u0 + u1) / 2;
-    double xMid = pow(uMid, N);
+    
     double midPointData[N];
-    evolvent.GetImage(xMid, midPointData);
+    evolvent.GetImage(uMid, midPointData);
+    
     TPoint<T, N> midPoint;
     for (size_t i = 0; i < N; ++i)
         midPoint[i] = midPointData[i];
-
-    T tmpZInternal = sign * func->ComputeFunction(midPoint.toVector());
+    int tmp = 0;
+    T tmpZInternal = sign * func->ComputePoint(vector<double>(midPointData, midPointData + N), tmp);
     if (tmpZInternal < resZInternal)
     {
         bestPoint = midPoint;

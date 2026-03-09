@@ -15,7 +15,10 @@ public:
     T R;  
     T zLeft;
     T zRight;
-    Interval(T l, T r, T zl, T zr) : left(l), right(r), zLeft(zl), zRight(zr), R(0) {}
+    T vLeft;
+    T vRight;
+
+    Interval(T l, T r, T zl, T zr, T vl, T vr) : left(l), right(r), zLeft(zl), zRight(zr), R(0), vRight(vr), vLeft(vl) {}
     
     T length() const { return right - left; }
     T center() const { return (left + right) / 2; }
@@ -32,9 +35,9 @@ public:
   TInterval();
   explicit TInterval(T left, T right);
 
-  void initialize(T left, T right, T zLeft, T zRight);
+  void initialize(T left, T right, T zLeft, T zRight, T vLeft = 0, T vRight = 0);
 
-  std::size_t splitByIndex(std::size_t index, T x, T zx);
+  std::size_t splitByIndex(std::size_t index, T x, T zx, T vx);
 
   const std::vector<Interval>& getIntervals() const;
   std::vector<Interval>& getIntervals();
@@ -43,11 +46,13 @@ public:
   typename std::vector<Interval>::const_iterator findInterval(T x) const;
 
   Interval getMaxRInterval() const;
-  T getRight(size_t index) const;
-  T getLeft(size_t index) const;
-  T getLength(size_t index) const;
+  T getRight(size_t index) const{return intervals[index].right;};
+  T getLeft(size_t index) const{return intervals[index].left;};
+  T getLength(size_t index) const{return intervals[index].length();};
   T getZLeft(size_t index) const { return intervals[index].zLeft; }
   T getZRight(size_t index) const { return intervals[index].zRight; }
+  T getVLeft(size_t index) const { return intervals[index].vLeft; }
+  T getVRight(size_t index) const { return intervals[index].vRight; }
   std::size_t getMaxRIntervalIndex() const;
   std::size_t getMinRIntervalIndex() const;
 
@@ -77,28 +82,32 @@ TInterval<T>::TInterval(T left, T right)
 }
 
 template<class T>
-void TInterval<T>::initialize(T left, T right, T zLeft, T zRight) 
+void TInterval<T>::initialize(T left, T right, T zLeft, T zRight, T vLeft, T vRight) 
 {
   if (left >= right) {
     throw std::invalid_argument("Left boundary must be less than right boundary");
   }
   intervals.clear();
-  intervals.push_back(Interval(left, right, zLeft, zRight));
+  intervals.push_back(Interval(left, right, zLeft, zRight, vLeft, vRight));
 }
 
 template<class T>
-std::size_t TInterval<T>::splitByIndex(std::size_t index, T x, T zx) 
+std::size_t TInterval<T>::splitByIndex(std::size_t index, T x, T zx, T vx) 
   {
     if (index >= intervals.size()) throw std::out_of_range("Index out of range");
 
     Interval& old = intervals[index];
     T right = old.right;
     T zRight = old.zRight;
+    T vRight = old.vRight;
 
     old.right = x;
     old.zRight = zx;
+    old.vRight = vx;
 
-    intervals.push_back(Interval(x, right, zx, zRight));
+    intervals.push_back(Interval(x, right, zx, zRight, vx, vRight));
+
+    
 
     return intervals.size() - 1; 
   }
@@ -154,24 +163,6 @@ inline TInterval<T>::getMaxRInterval() const
     [](const Interval& a, const Interval& b) {
       return a.R < b.R;
     });
-}
-
-template <class T>
-inline T TInterval<T>::getRight(size_t index) const
-{
-  return intervals[index].right;
-}
-
-template <class T>
-inline T TInterval<T>::getLeft(size_t index) const
-{
-  return intervals[index].left;
-}
-
-template <class T>
-inline T TInterval<T>::getLength(size_t index) const
-{
-  return intervals[index].length();
 }
 
 template<class T>
