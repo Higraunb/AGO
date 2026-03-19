@@ -84,13 +84,13 @@ protected:
   void SetFunctionMax(uint index, vector<double> maxPoint, double maxValue);
   /// Get the global maximizer for function number index
   /// If not specified, throws an exception
-  vector<double> GetMaxPoint(uint index) const;
+  
   /// Get the global maximum value for function number index
   /// If not specified, throws an exception
   double GetMaxValue(uint index) const;
 
   /// Get global minimizer
-  vector<double> GetOptimumPoint() const;
+  
   /// Get global minimum value
   double GetOptimumValue() const;
  
@@ -104,6 +104,8 @@ protected:
   
   IGeneralOptProblem();
 public:
+  vector<double> GetMaxPoint(uint index) const;
+  vector<double> GetOptimumPoint() const;
   virtual int GetConstraintsNumber() const { return mConstraintIndeces.size(); }
   virtual double ComputePoint(const std::vector<double>& y, int& index) const = 0;
   IGeneralOptProblem(int dim, vector<double> loBound, vector<double> upBound, int probIndex = -1);

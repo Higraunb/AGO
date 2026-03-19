@@ -4,31 +4,7 @@
 #include "Evolvent.hpp"
 #include <queue>
 #include <IGeneralOptProblem.hpp>
-
-/*template<class T, std::size_t N>
-std::vector<T> normalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
-{
-  TPoint<T, N> normalized;
-  for (std::size_t i = 0; i < N; ++i) {
-    T range = upperBound[i] - lowerBound[i];
-    if (std::abs(range) < 1e-10) {
-      throw std::domain_error("Zero range in dimension");
-    }
-    normalized[i] = (point[i] - lowerBound[i]) / range;
-  }
-  return normalized.toVector();
-}
-
-template<class T, std::size_t N>
-std::vector<T> denormalize(const TPoint<T, N>& point, const TPoint<T, N>& lowerBound, const TPoint<T, N>& upperBound)
-{
-  TPoint<T, N> denormalized;
-  for (std::size_t i = 0; i < N; ++i) {
-    T range = upperBound[i] - lowerBound[i];
-    denormalized[i] = lowerBound[i] + point[i] * range;
-  }
-  return denormalized.toVector();
-}*/
+#include <climits>
 
 template<class T, size_t N>
 class TAlgorithm
@@ -41,6 +17,7 @@ private:
     double R;
     std::vector<double> M;
     std::vector<double> L;
+    std::vector<double> Z;
     double zi;
     double zi1;
     double xi;
@@ -65,7 +42,6 @@ public:
     std::vector<T> Solve(size_t maxInteration, bool isMinimize = true); 
 };
 
-
 template <class T, size_t N>
 inline double TAlgorithm<T, N>::CalculateR(const TInterval<double>& interval, const size_t index)
 {
@@ -76,20 +52,21 @@ inline double TAlgorithm<T, N>::CalculateR(const TInterval<double>& interval, co
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
     double res = 0.0;
+    double deltax = pow((xRight - xLeft), 1.0 / N);
     if(vLeft == vRight)
     {
-        res = pow((xRight - xLeft), 1.0 / N) + ((zRight - zLeft) * (zRight - zLeft)
-        / (L[vLeft] * L[vLeft] * pow((xRight - xLeft), 1.0 / N))) - 2 * (zRight + zLeft) / L[vLeft];
+        res = deltax + ((zRight - zLeft) * (zRight - zLeft)
+        / (L[vLeft] * L[vLeft] * deltax)) - 2 * ((zRight + zLeft) - 2 * Z[vLeft]) / L[vLeft];
     }
     else if(vLeft > vRight)
     {
-        res = pow((xRight - xLeft), 1.0 / N) - 2 * zRight / L[vRight];
+        res = 2 * deltax - 4 * (zRight - Z[vRight]) / L[vRight];
     }
     else
     {
-        res = pow((xRight - xLeft), 1.0 / N) - 2 * zLeft / L[vLeft];
+        res = 2 * deltax - 4 * (zLeft - Z[vLeft]) / L[vLeft];
     }
-   
+
     return res;
 }
 
@@ -125,7 +102,7 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
     double newX = 0.0;
     if(vRight == vLeft)
     {
-        newX = (xLeft + xRight) / 2.0 - sgn * pow(std::abs(zRight - zLeft) / L[vLeft], N) / 2.0;
+        newX = (xLeft + xRight) / 2.0 - sgn * pow(std::abs(zRight - zLeft) / L[vLeft], 1.0 / static_cast<double>(N)) / (2.0 * L[vRight]);
     }
     else 
     {
@@ -150,7 +127,7 @@ template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
                                     double r_, IGeneralOptProblem* func_, int tightness_)
 {
-    if(eps >= 1)
+    if(eps_ >= 1)
         throw std::invalid_argument("eps >= 1");
     if(r_ <= 1)
         throw std::invalid_argument("r < 1");
@@ -186,10 +163,12 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
 
     M.assign(evalIndex + 1, 0.0);
     L.assign(evalIndex + 1, 1.0);
-
+    double MAX_double = std::numeric_limits<double>::max();
+    Z.assign(evalIndex + 1, MAX_double);
     double pointAData[N], pointBData[N];
     evolvent.GetImage(ua, pointAData);
     evolvent.GetImage(ub, pointBData);
+    
     int va = 0, vb = 0;
     TPoint<T, N> pointA(pointAData), pointB(pointBData);
     T za = sign * func->ComputePoint(std::vector<double>(pointAData, pointAData + N), va);
@@ -204,8 +183,12 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
         if (zb < resZInternal)
         {
             bestPoint = pointB;
-            resZInternal = zb;
+            resZInternal = zb;       
         }
+    }
+    if(zb < Z[0])
+    {
+        Z[0] = zb;
     }
 
     M[va] = CalculateM(interval, 0);
@@ -239,6 +222,10 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
                 bestPoint = newPoint;
                 resZInternal = newZInternal;
             }
+        }
+        if(newZInternal < Z[indexInteravlWhithMaxR])
+        {
+            Z[indexInteravlWhithMaxR] = newZInternal;
         }
         // split the interval and get new two intervals
 

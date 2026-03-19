@@ -1,5 +1,4 @@
 #pragma once
-#include <omp.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -42,64 +41,69 @@ struct FailedTest {
 };
 
 template <size_t N>
-TestStats run_constrained_batch(double gkls_eps, double r, GKLSClass type, size_t max_tests, int tightness, int constrType)
+TestStats run_constrained_batch(double gkls_eps, double r, GKLSClass type,
+                                size_t max_tests, int tightness, int constrType)
 {
-    size_t countSuccess = 0;
-    size_t countFail = 0;
+    size_t countSuccess    = 0;
+    size_t countFail       = 0;
     size_t totalIterations = 0;
 
     TPoint<double, N> lowerBoundVec;
     TPoint<double, N> upperBoundVec;
     for (size_t i = 0; i < N; ++i) {
         lowerBoundVec[i] = -1.0;
-        upperBoundVec[i] = 1.0;
+        upperBoundVec[i] =  1.0;
     }
 
-    // Пересчет эпсилон для эвольвенты
-    double alg_eps = std::pow(gkls_eps / 4.0, N); 
+    double alg_eps = std::pow(gkls_eps / 4.0, (int)N);
 
     auto start_time = std::chrono::high_resolution_clock::now();
-    
-    // Распараллеливаем цикл, аккумулируя статистику
+
     #pragma omp parallel for reduction(+:countSuccess, countFail, totalIterations)
     for (size_t i = 1; i <= max_tests; i++)
     {
-        // Предполагается, что твой класс условной задачи называется TConstrainedOptProblem
-        // и принимает тип ограничения (constrType) в конструкторе
         TGKLSConstrainedProblem func(
-        static_cast<EConstrainedProblemType>(constrType),
-        0.5,
-        0,
-        i,
-        N,
-        type,
-        TD
-        );
-        
-        TAlgorithm<double, N> alg(lowerBoundVec, upperBoundVec, alg_eps, r, &func, tightness);
-        
-        size_t max_iters = (N >= 4) ? 2000000 : 500000; 
-        vector<double> res = alg.Solve(max_iters, true); 
+            static_cast<EConstrainedProblemType>(constrType),
+            0.5, 0, (int)i, (int)N, type, TD);
 
-        // Достаем координаты найденной точки (сдвиг на 1, так как res[0] - это Z)
+        TAlgorithm<double, N> alg(lowerBoundVec, upperBoundVec, alg_eps, r, &func, tightness);
+
+        size_t max_iters = (N >= 4) ? 2000000 : 500000;
+        vector<double> res = alg.Solve(max_iters, true);
+
         vector<double> foundPoint(res.begin() + 1, res.begin() + 1 + N);
-        
-        // 1. Проверка на попадание в допустимую область
+
+        // --- Критерий 1: точка лежит в допустимой области ---
         int finalIndex = 0;
         func.ComputePoint(foundPoint, finalIndex);
         bool isFeasible = (finalIndex == func.GetConstraintsNumber());
 
-        // 2. Проверка на близость к известному глобальному оптимуму
-        vector<double> opt_point = func.GetOptimumPoint();
-        bool isGlobalOptimum = true;
-        double max_dist = 0.0;
-        for (size_t d = 0; d < N; ++d) {
-            double dist = std::abs(foundPoint[d] - opt_point[d]);
-            if (dist > max_dist) max_dist = dist;
+        // --- Критерий 2: близость к известному глобальному оптимуму ---
+        // GetOptimumPoint() бросает исключение для cptNormal если точка нарушает
+        // сырые ограничения — оборачиваем в try/catch
+        bool isGlobalOptimum = false;
+        try
+        {
+            vector<double> opt_point = func.GetOptimumPoint();
+            double max_dist = 0.0;
+            for (size_t d = 0; d < N; ++d)
+                max_dist = std::max(max_dist,
+                                    std::abs(foundPoint[d] - opt_point[d]));
+            isGlobalOptimum = (max_dist <= gkls_eps);
         }
-        if (max_dist > gkls_eps) isGlobalOptimum = false;
+        catch (const std::string&)
+        {
+            // GetOptimumPoint недоступен для данного типа задачи —
+            // считаем успех только по feasibility + значению целевой функции
+            if (isFeasible)
+            {
+                // Сравниваем найденное значение с оптимальным
+                double foundZ  = res[0];
+                double optZ    = func.GetOptimumValue();
+                isGlobalOptimum = (std::abs(foundZ - optZ) <= gkls_eps);
+            }
+        }
 
-        // Точка успешна, ТОЛЬКО если она точная И не нарушает ограничения
         if (isFeasible && isGlobalOptimum) {
             countSuccess++;
             totalIterations += (size_t)res[N + 1];
@@ -111,12 +115,14 @@ TestStats run_constrained_batch(double gkls_eps, double r, GKLSClass type, size_
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end_time - start_time;
     double totalTime = diff.count();
-    double avgTime = totalTime / max_tests;
+    double avgTime   = totalTime / max_tests;
 
     double successRate = (double)countSuccess / max_tests * 100.0;
-    double avgIter = countSuccess > 0 ? (double)totalIterations / countSuccess : 0.0;
+    double avgIter     = countSuccess > 0
+                         ? (double)totalIterations / countSuccess : 0.0;
 
-    return {max_tests, countSuccess, countFail, successRate, avgIter, totalTime, avgTime};
+    return {max_tests, countSuccess, countFail,
+            successRate, avgIter, totalTime, avgTime};
 }
 
 template <typename ProblemClass>
@@ -193,26 +199,26 @@ TestStats run_single_r_test_2d(double lower, double upper, double eps, size_t ma
     return {max_tests, countSuccess, countFail, successRate, avgIter};
 }
 
-inline void runConstrainedTests() 
+
+inline void runConstrainedTests()
 {
-    // Настройки для тестов (можно расширить по аналогии с GKLS)
-    vector<int>    dims    = { 2, 3, 4 };
-    vector<double> epss    = { 0.01, 0.01, 0.03 };
-    vector<string> shs     = { "simple", "hard", "simple" };
-    vector<double> rs      = { 4.5, 5.6, 4.5 };
-    
-    // Типы ограничений (зависит от твоего enum, обычно 0 - внутри, 2 - на границе)
-    vector<int> constrTypes = { 0, 2 }; 
-    vector<string> constrNames = { "InsideDomain", "OnBorder" };
+    vector<int>    dims = { 2, 3, 4 };
+    vector<double> epss = { 0.01, 0.01, 0.03 };
+    vector<string> shs  = { "simple", "hard", "simple" };
+    vector<double> rs   = { 4.5, 5.6, 4.5 };
 
-    std::string directoryName = "results";
-    std::filesystem::create_directories(directoryName);
+    // Исправлено: 1=cptInFeasibleDomain, 3=cptOnFeasibleBorder
+    vector<int>    constrTypes = { 1, 3 };
+    vector<string> constrNames = { "InFeasibleDomain", "OnFeasibleBorder" };
 
-    string filename = directoryName + "/Constrained_GKLS_Results.csv";
+    std::filesystem::create_directories("results");
+    string filename = "results/Constrained_GKLS_Results.csv";
+
     ofstream file(filename);
     if (file.is_open()) {
         file.imbue(std::locale(file.getloc(), new CommaNumPunct()));
-        file << "Type;Dim;Class;eps;r;Success_Rate_%;Success_Count;Fail_Count;Avg_Iterations;Total_Time_s;Avg_Time_s\n";
+        file << "Type;Dim;Class;eps;r;Success_Rate_%;Success_Count;"
+                "Fail_Count;Avg_Iterations;Total_Time_s;Avg_Time_s\n";
     }
 
     cout << "============================================================\n";
@@ -221,45 +227,45 @@ inline void runConstrainedTests()
 
     for (size_t c = 0; c < constrTypes.size(); c++)
     {
-        cout << "--- Testing Constraint Type: " << constrNames[c] << " ---\n";
-        
-        for (size_t i = 0; i < dims.size(); i++) 
+        cout << "--- Constraint Type: " << constrNames[c] << " ---\n";
+
+        for (size_t i = 0; i < dims.size(); i++)
         {
-            int N = dims[i];
+            int    N        = dims[i];
             double gkls_eps = epss[i];
-            string sh0 = shs[i];
-            double r = rs[i];
-            
-            GKLSClass type = (sh0 == "simple") ? Simple : Hard;
+            string sh0      = shs[i];
+            double r        = rs[i];
+
+            GKLSClass type  = (sh0 == "simple") ? Simple : Hard;
 
             int tightness = std::ceil(-std::log2(gkls_eps / 4.0));
-            if (tightness * N > 53) tightness = 53 / N; 
+            if (tightness * N > 53) tightness = 53 / N;
 
-            cout << "C_GKLS | Dim=" << N << " | " << setw(6) << sh0 
-                 << " | r=" << fixed << setprecision(1) << r 
-                 << " | tight=" << tightness << " ... ";
-            
-            TestStats stats;
-            
-            // Вызов нужной шаблонной функции
-            if (N == 2) stats = run_constrained_batch<2>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
+            cout << "C_GKLS | Dim=" << N << " | " << setw(6) << sh0
+                 << " | r=" << fixed << setprecision(1) << r
+                 << " | tight=" << tightness << " ... " << flush;
+
+            TestStats stats{};
+
+            if      (N == 2) stats = run_constrained_batch<2>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
             else if (N == 3) stats = run_constrained_batch<3>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
             else if (N == 4) stats = run_constrained_batch<4>(gkls_eps, r, type, 100, tightness, constrTypes[c]);
 
             if (file.is_open()) {
-                file << constrNames[c] << ";" << N << ";" << sh0 << ";" << gkls_eps << ";" << r << ";"
-                     << stats.successRate << ";" << stats.success << ";"
-                     << stats.fail << ";" << stats.avgIterations << ";"
-                     << stats.totalTimeSec << ";" << stats.avgTimeSec << "\n";
+                file << constrNames[c] << ";" << N << ";" << sh0 << ";"
+                     << gkls_eps << ";" << r << ";"
+                     << stats.successRate    << ";" << stats.success << ";"
+                     << stats.fail           << ";" << stats.avgIterations << ";"
+                     << stats.totalTimeSec   << ";" << stats.avgTimeSec << "\n";
             }
-            
-            cout << (stats.successRate == 100 ? "PERFECT!" : "Done.") 
-                 << " Rate: " << setw(5) << stats.successRate << "% | Iters: " 
-                 << fixed << setprecision(0) << stats.avgIterations 
+
+            cout << (stats.successRate == 100.0 ? "PERFECT!" : "Done.")
+                 << " Rate: " << setw(6) << setprecision(2) << stats.successRate
+                 << "% | Iters: " << fixed << setprecision(0) << stats.avgIterations
                  << " | Time: " << setprecision(2) << stats.totalTimeSec << "s\n";
         }
     }
-    
+
     cout << "============================================================\n";
     cout << "Эксперименты завершены. Результаты в " << filename << "\n\n";
     if (file.is_open()) file.close();
@@ -397,9 +403,9 @@ std::string directoryName = "results";
         
         GKLSClass type = (sh0 == "simple") ? Simple : Hard;
 
-        int tightness = std::ceil(-std::log2(gkls_eps / 4.0));
-        if (tightness * N > 53) tightness = 53 / N; 
-
+        // int tightness = std::ceil(-std::log2(gkls_eps / 4.0));
+        // if (tightness * N > 53) tightness = 53 / N; 
+        int tightness = 7;
         cout << "GKLS | Dim=" << N << " | " << setw(6) << sh0 
              << " | r=" << fixed << setprecision(1) << r 
              << " | tight=" << tightness << " ... ";
