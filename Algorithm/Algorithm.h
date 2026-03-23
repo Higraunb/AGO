@@ -98,11 +98,18 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
 
+    double dx = xRight - xLeft;
+    if (dx <= 1e-15 || std::isnan(dx)) return (xLeft + xRight) / 2.0;
+
     double sgn = (zRight > zLeft) ? 1.0 : ((zRight < zLeft) ? -1.0 : 0.0);
     double newX = 0.0;
-    if(vRight == vLeft)
+    if(vRight == vLeft && L[vLeft] > 0)
     {
-        newX = (xLeft + xRight) / 2.0 - sgn * pow(std::abs(zRight - zLeft) / L[vLeft], 1.0 / static_cast<double>(N)) / (2.0 * L[vRight]);
+        newX = (xLeft + xRight) / 2.0 - sgn * std::pow(std::abs(zRight - zLeft) / L[vLeft], static_cast<double>(N)) / 2.0;
+        
+        if (std::isnan(newX) || newX <= xLeft || newX >= xRight) {
+            newX = (xLeft + xRight) / 2.0;
+        }
     }
     else 
     {
@@ -177,15 +184,20 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     interval.initialize(ua, ub, za, zb, va, vb);
 
     TPoint<T, N> bestPoint = pointA;
-    T resZInternal = za;
-    if (vb == evalIndex) 
+    T resZInternal = std::numeric_limits<T>::max();
+
+    if (va == evalIndex) 
     {
-        if (zb < resZInternal)
-        {
-            bestPoint = pointB;
-            resZInternal = zb;       
-        }
+        bestPoint = pointA;
+        resZInternal = za;
     }
+    
+    if (vb == evalIndex && zb < resZInternal) 
+    {
+        bestPoint = pointB;
+        resZInternal = zb;       
+    }
+
     if(zb < Z[0])
     {
         Z[0] = zb;
@@ -223,9 +235,9 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
                 resZInternal = newZInternal;
             }
         }
-        if(newZInternal < Z[indexInteravlWhithMaxR])
+        if(xEvalIndex < Z.size() && newZInternal < Z[xEvalIndex])
         {
-            Z[indexInteravlWhithMaxR] = newZInternal;
+            Z[xEvalIndex] = newZInternal;
         }
         // split the interval and get new two intervals
 
@@ -234,7 +246,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
         // check has M changed
         // if yes, calculate for each new R 
         double m1 = CalculateM(interval, indexInteravlWhithMaxR);
-        if((m1 > 0) && (M[xEvalIndex] < m1))
+        if(xEvalIndex < M.size() && (m1 > 0) && (M[xEvalIndex] < m1))
         {
             M[xEvalIndex] = m1;
             L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
@@ -242,7 +254,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
             m_changed = true;
         }
         double m2 = CalculateM(interval, right_half_idx);
-        if((m2 > 0) && (M[xEvalIndex] < m2))
+        if(xEvalIndex < M.size() && (m2 > 0) && (M[xEvalIndex] < m2))
         {
             M[xEvalIndex] = m2;
             L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];

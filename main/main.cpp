@@ -2,6 +2,6 @@
 
 int main() 
 {
-    runAllTests();
+    RunConsoleBenchmarks();
     return 0;
 }
