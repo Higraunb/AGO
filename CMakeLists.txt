@@ -9,11 +9,18 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# --- НОВОЕ: Ищем OpenMP в системе ---
+# Ищем OpenMP в системе
 find_package(OpenMP REQUIRED)
 
-add_subdirectory(Point)
-add_subdirectory(Interval)
-add_subdirectory(tests)
-add_subdirectory(Algorithm)
-add_subdirectory(main)
+# Ищем fmt и spdlog в системе
+find_package(fmt REQUIRED)
+find_package(spdlog REQUIRED)
+
+# Внешние библиотеки (оптимизационные задачи)
+add_subdirectory(external)
+
+# Основные компоненты проекта
+add_subdirectory(src/core/Point)
+add_subdirectory(src/core/Interval)
+add_subdirectory(src/core/Algorithm)
+add_subdirectory(src/main)
