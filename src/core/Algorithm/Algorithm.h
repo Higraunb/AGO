@@ -87,13 +87,13 @@ inline double TAlgorithm<T, N>::CalculateM(const TInterval<double>& interval, co
     double zRight = interval.getZRight(index);
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
-
+    double deltax = pow((xRight - xLeft), 1.0 / N);
     LOG_DEBUG("TAlgorithm::CalculateM - index={}, xLeft={}, xRight={}, zLeft={}, zRight={}, vLeft={}, vRight={}", 
               index, xLeft, xRight, zLeft, zRight, vLeft, vRight);
 
     if(vLeft == vRight)
     {
-        double res = std::abs(zRight - zLeft) / pow((xRight - xLeft), 1.0 / N);
+        double res = std::abs(zRight - zLeft) / deltax;
         LOG_DEBUG("TAlgorithm::CalculateM - Case vLeft==vRight: res={}", res);
         return res;
     }
@@ -125,7 +125,7 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
     double newX = 0.0;
     if(vRight == vLeft && L[vLeft] > 0)
     {
-        newX = (xLeft + xRight) / 2.0 - sgn * std::pow(std::abs(zRight - zLeft) / L[vLeft], static_cast<double>(N)) / 2.0;
+        newX = (xLeft + xRight) / 2.0 - sgn * std::pow(std::abs(zRight - zLeft) / M[vLeft], static_cast<double>(N)) / (2.0 * r);
         LOG_DEBUG("TAlgorithm::CalculateNewX - Calculated newX={}, sgn={}", newX, sgn);
         
         if (std::isnan(newX) || newX <= xLeft || newX >= xRight) {
@@ -233,28 +233,8 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     interval.initialize(ua, ub, za, zb, va, vb);
 
     TPoint<T, N> bestPoint = pointA;
-    T resZInternal = std::numeric_limits<T>::max();
-
-    if (va == evalIndex) 
-    {
-        bestPoint = pointA;
-        resZInternal = za;
-        LOG_DEBUG("TAlgorithm::Solve - Best point found at A: z={}", za);
-    }
-    
-    if (vb == evalIndex && zb < resZInternal) 
-    {
-        bestPoint = pointB;
-        resZInternal = zb;
-        LOG_DEBUG("TAlgorithm::Solve - Best point found at B: z={}", zb);
-    }
-
-    if(zb < Z[0])
-    {
-        Z[0] = zb;
-        LOG_DEBUG("TAlgorithm::Solve - Updated Z[0] to {}", zb);
-    }
-
+    double resZInternal = std::min(za, zb);
+    Z[0] = resZInternal;
     M[va] = CalculateM(interval, 0);
     L[va] = (M[va] == 0) ? 1.0 : r * M[va];
     LOG_DEBUG("TAlgorithm::Solve - Initial M[{}]={}, L[{}]={}", va, M[va], va, L[va]);
