@@ -161,7 +161,7 @@ template <class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
                                     double r_, IGeneralOptProblem* func_, int tightness_)
 {
-    LOG_INFO("TAlgorithm::Constructor - Initializing with eps={}, r={}, tightness={}, N={}", 
+    LOG_DEBUG("TAlgorithm::Constructor - Initializing with eps={}, r={}, tightness={}, N={}", 
              eps_, r_, tightness_, N);
     
     if(eps_ >= 1) {
@@ -190,7 +190,7 @@ inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upper
     }
     evolvent = ags::Evolvent(N, tightness_, lb, ub, ags::Simple);
     
-    LOG_INFO("TAlgorithm::Constructor - Successfully initialized");
+    LOG_DEBUG("TAlgorithm::Constructor - Successfully initialized");
 }
 
 template <class T, size_t N>
@@ -202,7 +202,7 @@ inline TAlgorithm<T, N>::~TAlgorithm()
 template <class T, size_t N>
 inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimize)
 {
-    LOG_INFO("TAlgorithm::Solve - Starting solve with maxIteration={}, isMinimize={}", maxIteration, isMinimize);
+    LOG_DEBUG("TAlgorithm::Solve - Starting solve with maxIteration={}, isMinimize={}", maxIteration, isMinimize);
     
     T sign = isMinimize ? 1.0 : -1.0;
     // calculate first interval
@@ -349,7 +349,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
 
     } while ((interval.getLength(pq.top().second) > eps) && (iteration < maxIteration));
 
-    LOG_INFO("TAlgorithm::Solve - Finished solve loop. Total iterations={}, final bestZ={}", iteration, resZInternal);
+    LOG_DEBUG("TAlgorithm::Solve - Finished solve loop. Total iterations={}, final bestZ={}", iteration, resZInternal);
 
     size_t maxIndex = pq.top().second;
     double u0 = interval.getLeft(maxIndex);
@@ -381,6 +381,6 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
         result.push_back(bestPoint[i]);
     result.push_back(static_cast<T>(iteration));
     
-    LOG_INFO("TAlgorithm::Solve - Solution: z={}, iterations={}", finalZ, iteration);
+    LOG_DEBUG("TAlgorithm::Solve - Solution: z={}, iterations={}", finalZ, iteration);
     return result;
 }
