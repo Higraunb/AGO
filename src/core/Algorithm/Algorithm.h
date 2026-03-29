@@ -52,7 +52,7 @@ inline double TAlgorithm<T, N>::CalculateR(const TInterval<double>& interval, co
     double zRight = interval.getZRight(index);
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
-    double res = 0.0;
+    double res = 1000.0;
     double deltax = pow((xRight - xLeft), 1.0 / N);
     
     LOG_DEBUG("TAlgorithm::CalculateR - index={}, xLeft={}, xRight={}, zLeft={}, zRight={}, vLeft={}, vRight={}, deltax={}", 
@@ -144,7 +144,7 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
 }
 
 template <class T, size_t N>
-inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double, size_t>> pq, TInterval<double> &interval)
+inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double, size_t>>& pq, TInterval<double> &interval)
 {
     LOG_DEBUG("TAlgorithm::RebuildQueue - Starting queue rebuild, current interval size={}", interval.size());
     pq = std::priority_queue<std::pair<double, size_t>>();
