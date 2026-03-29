@@ -52,7 +52,7 @@ inline double TAlgorithm<T, N>::CalculateR(const TInterval<double>& interval, co
     double zRight = interval.getZRight(index);
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
-    double res = 1000.0;
+    double res = 0.0;
     double deltax = pow((xRight - xLeft), 1.0 / N);
     
     LOG_DEBUG("TAlgorithm::CalculateR - index={}, xLeft={}, xRight={}, zLeft={}, zRight={}, vLeft={}, vRight={}, deltax={}", 
