@@ -19,9 +19,10 @@ jobs:
           fetch-depth: 0
 
       # Устанавливаем зависимости, которые требует твой CMakeLists.txt
-      - name: Install Python packages
-        # Заменили google-generativeai на google-genai
-        run: pip install google-genai requests
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libomp-dev libfmt-dev libspdlog-dev
 
       # Собираем проект через CMake
       - name: Build project
@@ -37,7 +38,7 @@ jobs:
           python-version: '3.10'
 
       - name: Install Python packages
-        run: pip install google-generativeai requests
+        run: pip install google-genai requests
 
       # Запускаем скрипт ревью
       - name: Run Gemini Review Script
