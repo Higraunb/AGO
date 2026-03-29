@@ -123,7 +123,7 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
 
     double sgn = (zRight > zLeft) ? 1.0 : ((zRight < zLeft) ? -1.0 : 0.0);
     double newX = 0.0;
-    if(vRight == vLeft && L[vLeft] > 0)
+    if(vRight == vLeft && M[vLeft] > 0)
     {
         newX = (xLeft + xRight) / 2.0 - sgn * std::pow(std::abs(zRight - zLeft) / M[vLeft], static_cast<double>(N)) / (2.0 * r);
         LOG_DEBUG("TAlgorithm::CalculateNewX - Calculated newX={}, sgn={}", newX, sgn);
@@ -144,7 +144,7 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
 }
 
 template <class T, size_t N>
-inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double, size_t>>& pq, TInterval<double> &interval)
+inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double, size_t>> pq, TInterval<double> &interval)
 {
     LOG_DEBUG("TAlgorithm::RebuildQueue - Starting queue rebuild, current interval size={}", interval.size());
     pq = std::priority_queue<std::pair<double, size_t>>();
