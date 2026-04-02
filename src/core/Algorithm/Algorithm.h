@@ -123,7 +123,7 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
 
     double sgn = (zRight > zLeft) ? 1.0 : ((zRight < zLeft) ? -1.0 : 0.0);
     double newX = 0.0;
-    if(vRight == vLeft && L[vLeft] > 0)
+    if(vRight == vLeft && M[vLeft] > 0)
     {
         newX = (xLeft + xRight) / 2.0 - sgn * std::pow(std::abs(zRight - zLeft) / M[vLeft], static_cast<double>(N)) / (2.0 * r);
         LOG_DEBUG("TAlgorithm::CalculateNewX - Calculated newX={}, sgn={}", newX, sgn);
