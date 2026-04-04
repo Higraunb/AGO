@@ -6,6 +6,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    # -O3 включает самые агрессивные оптимизации
+    # -march=native оптимизирует под твой конкретный процессор
+    # -ffast-math может чуть-чуть снизить точность флоатов в крайних случаях, но сильно ускоряет математику
+    add_compile_options(-O3 -march=native -ffast-math)
+endif()
+
 # Подключаем модуль для автоматического скачивания библиотек
 include(FetchContent)
 
