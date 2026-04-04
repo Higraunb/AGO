@@ -11,6 +11,7 @@ int main()
     
     RunConsoleBenchmarks();
 
+    
     LOG_INFO("AGO Application - Finished");
     spdlog::shutdown();
     return 0;
