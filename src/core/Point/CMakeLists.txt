@@ -1,9 +1,3 @@
-add_library(Point
-    Point.h
-    Point.cpp
-)
-
-target_include_directories(Point PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Убедитесь, что Point доступен для других целей
-set(Point_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR} PARENT_SCOPE)
+# Header-only библиотека для Point
+add_library(AGO_Point INTERFACE)
+target_include_directories(AGO_Point INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

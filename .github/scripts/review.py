@@ -54,7 +54,7 @@ print("Отправка кода на анализ в Gemini...", flush=True)
 
 try:
     ai_response = client.models.generate_content(
-        model='gemini-1.5-flash',
+        model='gemini-2.5-flash',
         contents=prompt
     )
     review_comment = ai_response.text
