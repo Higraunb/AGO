@@ -6,6 +6,9 @@
 #include <IGeneralOptProblem.hpp>
 #include <climits>
 #include "../../../Logger/Logger.h"
+#include <algorithm>
+#include <opencv2/ml.hpp>  
+
 
 template<class T, size_t N>
 class TAlgorithm
@@ -30,10 +33,20 @@ private:
     size_t indexInteravlWhithMaxR;
     size_t indexInteravlWhithMinR;
     size_t iteration;
+
+    std::vector<TPoint<T, N>> historyPoints;
+    std::vector<double> historyValues;
+    bool forestBuilt;
+    size_t minTrialsBeforeForest;
+    cv::Ptr<cv::ml::RTrees> randomForest; 
+
     double CalculateR(const TInterval<double>& interval, const size_t index);
     double CalculateM(const TInterval<double>& interval, const size_t index);
     double CalculateNewX(const TInterval<double>& interval, const size_t index);
     void RebuildQueue(std::priority_queue<std::pair<double, size_t>>& pq, TInterval<double>& interval);
+
+    void BuildRandomForest();
+
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               double r_, IGeneralOptProblem* func_, int tightness_);
@@ -158,30 +171,65 @@ inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double,
 }
 
 template <class T, size_t N>
+inline void TAlgorithm<T, N>::BuildRandomForest()
+{
+    if (historyPoints.empty())
+        return;
+
+    LOG_DEBUG("TAlgorithm::BuildRandomForest - Building random forest with {} points", historyPoints.size());
+
+    cv::Mat samples(static_cast<int>(historyPoints.size()), static_cast<int>(N), CV_32F);
+    cv::Mat responses(static_cast<int>(historyPoints.size()), 1, CV_32F);
+
+    for (size_t i = 0; i < historyPoints.size(); ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            samples.at<float>(i, j) = static_cast<float>(historyPoints[i][j]);
+        }
+        responses.at<float>(i, 0) = static_cast<float>(historyValues[i]);
+    }
+
+    randomForest = cv::ml::RTrees::create();
+    randomForest->setMaxDepth(10);
+    randomForest->setMinSampleCount(10);
+    randomForest->setRegressionAccuracy(0.01f);
+    randomForest->setUseSurrogates(false);
+    randomForest->setCVFolds(0);
+    randomForest->setActiveVarCount(std::max(1, static_cast<int>(N / 2)));
+    randomForest->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 100, 0.01f)); // float
+
+    CV_Assert(samples.type() == CV_32F);
+    CV_Assert(responses.type() == CV_32F);
+    randomForest->train(samples, cv::ml::ROW_SAMPLE, responses);
+    forestBuilt = true;
+
+    LOG_DEBUG("TAlgorithm::BuildRandomForest - Random forest built successfully");
+}
+
+template<class T, size_t N>
 inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
                                     double r_, IGeneralOptProblem* func_, int tightness_)
+    : func(func_),
+      eps(eps_),
+      r(r_),
+      iteration(0),
+      lowerBound(lowerBound_),
+      upperBound(upperBound_),
+      forestBuilt(false),
+      minTrialsBeforeForest(100 * N)
 {
     LOG_DEBUG("TAlgorithm::Constructor - Initializing with eps={}, r={}, tightness={}, N={}", 
-             eps_, r_, tightness_, N);
-    
-    if(eps_ >= 1) {
+              eps_, r_, tightness_, N);
+
+    if (eps_ >= 1) {
         LOG_ERROR("TAlgorithm::Constructor - Invalid eps: {} (must be < 1)", eps_);
         throw std::invalid_argument("eps >= 1");
     }
-    if(r_ <= 1) {
+    if (r_ <= 1) {
         LOG_ERROR("TAlgorithm::Constructor - Invalid r: {} (must be > 1)", r_);
         throw std::invalid_argument("r < 1");
     }
-    
-    eps = eps_;
-    r = r_;
-    func = func_;
-    iteration = 0;
-    lowerBound = lowerBound_;
-    upperBound = upperBound_;
 
-    LOG_DEBUG("TAlgorithm::Constructor - Lower bound: dim={}, Upper bound: dim={}", 
-              N, N);
+    LOG_DEBUG("TAlgorithm::Constructor - Lower bound: dim={}, Upper bound: dim={}", N, N);
 
     double lb[N], ub[N];
     for (size_t i = 0; i < N; ++i) {
@@ -189,7 +237,7 @@ inline TAlgorithm<T, N>::TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upper
         ub[i] = static_cast<double>(upperBound_[i]);
     }
     evolvent = ags::Evolvent(N, tightness_, lb, ub, ags::Simple);
-    
+
     LOG_DEBUG("TAlgorithm::Constructor - Successfully initialized");
 }
 
@@ -206,6 +254,10 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     
     T sign = isMinimize ? 1.0 : -1.0;
     // calculate first interval
+    historyPoints.clear();
+    historyValues.clear();
+    forestBuilt = false;
+
     double ua = 0.0;
     double ub = 1.0;
 
@@ -231,6 +283,11 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     LOG_DEBUG("TAlgorithm::Solve - Initial points: pointA z={}, va={}, pointB z={}, vb={}", za, va, zb, vb);
 
     interval.initialize(ua, ub, za, zb, va, vb);
+
+    historyPoints.push_back(pointA);
+    historyValues.push_back(static_cast<double>(za));
+    historyPoints.push_back(pointB);
+    historyValues.push_back(static_cast<double>(zb));
 
     TPoint<T, N> bestPoint = pointA;
     double resZInternal = std::min(za, zb);
@@ -263,8 +320,16 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
         evolvent.GetImage(newU, newPointData);
         TPoint<T, N> newPoint(newPointData);
         double newZInternal = sign * func->ComputePoint(vector<double>(newPointData, newPointData + N), xEvalIndex);
-        
+
         LOG_DEBUG("TAlgorithm::Solve - New point: u={}, z={}, evalIndex={}", newU, newZInternal, xEvalIndex);
+
+        historyPoints.push_back(newPoint);
+        historyValues.push_back(newZInternal);
+
+        if (!forestBuilt && historyPoints.size() >= minTrialsBeforeForest) {
+            BuildRandomForest();
+            //break;
+        }
 
         if (xEvalIndex == evalIndex) 
         {
@@ -344,6 +409,9 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
         midPoint[i] = midPointData[i];
     int tmp = 0;
     T tmpZInternal = sign * func->ComputePoint(vector<double>(midPointData, midPointData + N), tmp);
+
+    historyPoints.push_back(midPoint);
+    historyValues.push_back(static_cast<double>(tmpZInternal));
     
     LOG_DEBUG("TAlgorithm::Solve - Final midpoint z={}", tmpZInternal);
     
@@ -355,6 +423,33 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     }
 
     T finalZ = isMinimize ? resZInternal : -resZInternal;
+
+    if (forestBuilt && !randomForest.empty())
+    {
+        LOG_INFO("=== Random Forest Information ===");
+        LOG_INFO("Number of training points: {}", historyPoints.size());
+        LOG_INFO("Number of features (N): {}", N);
+        LOG_INFO("Active variables count: {}", randomForest->getActiveVarCount());
+        LOG_INFO("Max depth: {}", randomForest->getMaxDepth());
+        LOG_INFO("Min sample count: {}", randomForest->getMinSampleCount());
+        LOG_INFO("Regression accuracy: {}", randomForest->getRegressionAccuracy());
+        LOG_INFO("Termination criteria: max trees = 100, epsilon = 0.01");
+
+        cv::Mat importance = randomForest->getVarImportance();
+        if (!importance.empty() && importance.rows == (int)N)
+        {
+            LOG_INFO("Variable importance (relative):");
+            for (int i = 0; i < importance.rows; ++i)
+            {
+                LOG_INFO("  Feature {}: {}", i, importance.at<float>(i, 0));
+            }
+        }
+        else
+        {
+            LOG_INFO("Variable importance not available (possibly not computed by OpenCV).");
+        }
+    }
+
     std::vector<T> result;
     result.push_back(finalZ);
     for (size_t i = 0; i < N; ++i)

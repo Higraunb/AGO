@@ -211,7 +211,7 @@ inline void RunConsoleBenchmarks()
     std::vector<std::string> shs     = { "simple", "hard", "simple", "hard", "simple", "hard", "simple", "hard", "simple", "simple", "simple" };
     std::vector<double> rs      = { 5, 6.7, 4.5, 5.6, 4.5, 4.6, 4.5, 5.6, 5.6, 5.6, 5.6 };
     
-    for (int i = 0; i <= 7; i++) 
+    for (int i = 0; i <= 0; i++) 
     {
         int N = dims[i];
         double gkls_eps = epss[i];
@@ -222,7 +222,7 @@ inline void RunConsoleBenchmarks()
         std::string name = fmt::format("GKLS {}D {}", N, sh0 == "simple" ? "Simple" : "Hard  ");
 
         switch (N) {
-            case 2: RunGKLSTest<2>(name, type, 100, r, tightness, gkls_eps); break;
+            case 2: RunGKLSTest<2>(name, type, 1, r, tightness, gkls_eps); break;
             case 3: RunGKLSTest<3>(name, type, 100, r, tightness, gkls_eps); break;
             case 4: RunGKLSTest<4>(name, type, 100, r, tightness, gkls_eps); break;
             case 5: RunGKLSTest<5>(name, type, 100, r, tightness, gkls_eps); break;

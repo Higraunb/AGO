@@ -33,6 +33,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 # 3. Ищем OpenCV в системе (собирать его из исходников каждый раз слишком долго)
+set(OpenCV_DIR "C:/msys64/ucrt64/lib/cmake/opencv4")
 find_package(OpenCV REQUIRED)
 
 # Ищем системную библиотеку потоков (нужно для Linux, на Windows пройдет незаметно)
@@ -41,6 +42,7 @@ find_package(Threads REQUIRED)
 # 2. Создаем библиотеку Logger (header-only, так как только Logger.h)
 add_library(AGO_Logger INTERFACE)
 target_include_directories(AGO_Logger INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/Logger)
+target_link_libraries(AGO_Logger INTERFACE spdlog::spdlog)
 
 # 3. Подключаем все поддиректории
 add_subdirectory(external)
