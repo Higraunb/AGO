@@ -2,6 +2,7 @@
 #include "Interval.h"
 #include "IOptProblem.hpp"
 #include "Evolvent.hpp"
+#include "LocalMethod.hpp"
 #include <queue>
 #include <IGeneralOptProblem.hpp>
 #include <climits>
@@ -53,7 +54,8 @@ public:
     
     ~TAlgorithm();
     
-    std::vector<T> Solve(size_t maxInteration, bool isMinimize = true); 
+    std::vector<T> Solve0(size_t maxInteration, bool isMinimize = true);
+    std::vector<T> Solve(size_t maxIteration, size_t p = 100, bool isMinimize = true);
 };
 
 template <class T, size_t N>
@@ -189,13 +191,14 @@ inline void TAlgorithm<T, N>::BuildRandomForest()
     }
 
     randomForest = cv::ml::RTrees::create();
-    randomForest->setMaxDepth(10);
+    randomForest->setMaxDepth(6);
     randomForest->setMinSampleCount(10);
     randomForest->setRegressionAccuracy(0.01f);
     randomForest->setUseSurrogates(false);
     randomForest->setCVFolds(0);
     randomForest->setActiveVarCount(std::max(1, static_cast<int>(N / 2)));
-    randomForest->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 100, 0.01f)); // float
+
+    randomForest->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER, 30, 0.1));
 
     CV_Assert(samples.type() == CV_32F);
     CV_Assert(responses.type() == CV_32F);
@@ -248,7 +251,7 @@ inline TAlgorithm<T, N>::~TAlgorithm()
 }
 
 template <class T, size_t N>
-inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimize)
+inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinimize)
 {
     LOG_DEBUG("TAlgorithm::Solve - Starting solve with maxIteration={}, isMinimize={}", maxIteration, isMinimize);
     
@@ -424,32 +427,6 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
 
     T finalZ = isMinimize ? resZInternal : -resZInternal;
 
-    if (forestBuilt && !randomForest.empty())
-    {
-        LOG_INFO("=== Random Forest Information ===");
-        LOG_INFO("Number of training points: {}", historyPoints.size());
-        LOG_INFO("Number of features (N): {}", N);
-        LOG_INFO("Active variables count: {}", randomForest->getActiveVarCount());
-        LOG_INFO("Max depth: {}", randomForest->getMaxDepth());
-        LOG_INFO("Min sample count: {}", randomForest->getMinSampleCount());
-        LOG_INFO("Regression accuracy: {}", randomForest->getRegressionAccuracy());
-        LOG_INFO("Termination criteria: max trees = 100, epsilon = 0.01");
-
-        cv::Mat importance = randomForest->getVarImportance();
-        if (!importance.empty() && importance.rows == (int)N)
-        {
-            LOG_INFO("Variable importance (relative):");
-            for (int i = 0; i < importance.rows; ++i)
-            {
-                LOG_INFO("  Feature {}: {}", i, importance.at<float>(i, 0));
-            }
-        }
-        else
-        {
-            LOG_INFO("Variable importance not available (possibly not computed by OpenCV).");
-        }
-    }
-
     std::vector<T> result;
     result.push_back(finalZ);
     for (size_t i = 0; i < N; ++i)
@@ -457,5 +434,184 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, bool isMinimi
     result.push_back(static_cast<T>(iteration));
     
     LOG_DEBUG("TAlgorithm::Solve - Solution: z={}, iterations={}", finalZ, iteration);
+    return result;
+}
+
+template <class T, size_t N>
+inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, bool isMinimize)
+{
+    LOG_DEBUG("TAlgorithm::Solve - Starting solve with maxIteration={}, p={}, isMinimize={}", maxIteration, p, isMinimize);
+    
+    T sign = isMinimize ? 1.0 : -1.0;
+    historyPoints.clear();
+    historyValues.clear();
+    forestBuilt = false;
+
+    double ua = 0.0;
+    double ub = 1.0;
+
+    int evalIndex = func->GetConstraintsNumber();
+    M.assign(evalIndex + 1, 0.0);
+    L.assign(evalIndex + 1, 1.0);
+    double MAX_double = std::numeric_limits<double>::max();
+    Z.assign(evalIndex + 1, MAX_double);
+    
+    double pointAData[N], pointBData[N];
+    evolvent.GetImage(ua, pointAData);
+    evolvent.GetImage(ub, pointBData);
+    
+    int va = 0, vb = 0;
+    TPoint<T, N> pointA(pointAData), pointB(pointBData);
+    T za = sign * func->ComputePoint(std::vector<double>(pointAData, pointAData + N), va);
+    T zb = sign * func->ComputePoint(std::vector<double>(pointBData, pointBData + N), vb);
+
+    interval.initialize(ua, ub, za, zb, va, vb);
+
+    historyPoints.push_back(pointA);
+    historyValues.push_back(static_cast<double>(za));
+    historyPoints.push_back(pointB);
+    historyValues.push_back(static_cast<double>(zb));
+
+    TPoint<T, N> bestPoint = pointA;
+    double resZInternal = std::min(za, zb);
+    Z[0] = resZInternal;
+    M[va] = CalculateM(interval, 0);
+    L[va] = (M[va] == 0) ? 1.0 : r * M[va];
+    
+    R = CalculateR(interval, 0);
+    interval.setIntervalR(0, R);
+    
+    std::priority_queue<std::pair<double, size_t>> pq;
+    pq.push({R, 0});
+
+    size_t lastTrainedSize = 0;
+    
+    do
+    {
+        iteration++;
+        
+        indexInteravlWhithMaxR = pq.top().second;
+        pq.pop();
+
+        double newU = CalculateNewX(interval, indexInteravlWhithMaxR);
+        int xEvalIndex = 0;
+        double newPointData[N];
+        evolvent.GetImage(newU, newPointData);
+        TPoint<T, N> newPoint(newPointData);
+        double newZInternal = sign * func->ComputePoint(std::vector<double>(newPointData, newPointData + N), xEvalIndex);
+
+        historyPoints.push_back(newPoint);
+        historyValues.push_back(newZInternal);
+
+        if (!forestBuilt && historyPoints.size() >= minTrialsBeforeForest) {
+            BuildRandomForest();
+        }
+
+        if (xEvalIndex == evalIndex && newZInternal < resZInternal) {
+            bestPoint = newPoint;
+            resZInternal = newZInternal;
+        }
+        
+        if(xEvalIndex < Z.size() && newZInternal < Z[xEvalIndex]) {
+            Z[xEvalIndex] = newZInternal;
+        }
+
+        size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newU, newZInternal, xEvalIndex);
+        
+        bool m_changed = false;
+        double m1 = CalculateM(interval, indexInteravlWhithMaxR);
+        if(xEvalIndex < M.size() && (m1 > 0) && (M[xEvalIndex] < m1)) {
+            M[xEvalIndex] = m1;
+            L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
+            RebuildQueue(pq, interval);
+            m_changed = true;
+        }
+        double m2 = CalculateM(interval, right_half_idx);
+        if(xEvalIndex < M.size() && (m2 > 0) && (M[xEvalIndex] < m2)) {
+            M[xEvalIndex] = m2;
+            L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
+            if(!m_changed) RebuildQueue(pq, interval);
+            m_changed = true;
+        }
+
+        if(!m_changed) {
+            double r1 = CalculateR(interval, indexInteravlWhithMaxR);
+            interval.setIntervalR(indexInteravlWhithMaxR, r1);
+            pq.push({r1, indexInteravlWhithMaxR});
+
+            double r2 = CalculateR(interval, right_half_idx);
+            interval.setIntervalR(right_half_idx, r2);
+            pq.push({r2, right_half_idx});
+        }
+
+        // --- ВНЕДРЕНИЕ: СЕТКА, RF И ЛОКАЛЬНЫЙ ПОИСК ---
+        if (historyPoints.size() - lastTrainedSize >= p) {
+            BuildRandomForest();
+            lastTrainedSize = historyPoints.size();
+
+            // 1. Подготовка сетки (Batch)
+            const int GRID_RES = 15; 
+            int totalPoints = std::pow(GRID_RES, N);
+            cv::Mat gridSamples(totalPoints, (int)N, CV_32F);
+
+            for (int i = 0; i < totalPoints; ++i) {
+                int temp = i;
+                for (int d = 0; d < (int)N; ++d) {
+                    float val = lowerBound[d] + (upperBound[d] - lowerBound[d]) * (temp % GRID_RES) / (GRID_RES - 1.0f);
+                    gridSamples.at<float>(i, d) = val;
+                    temp /= GRID_RES;
+                }
+            }
+
+            // 2. Пакетное предсказание — в десятки раз быстрее циклов
+            cv::Mat predictions;
+            randomForest->predict(gridSamples, predictions);
+
+            // 3. Мгновенный поиск лучшего предсказания через OpenCV
+            double predBestZ;
+            cv::Point bestIdx;
+            if (isMinimize) 
+                cv::minMaxLoc(predictions, &predBestZ, nullptr, &bestIdx, nullptr);
+            else 
+                cv::minMaxLoc(predictions, nullptr, &predBestZ, nullptr, &bestIdx);
+
+            // 4. Логический фильтр: запускаем локальный поиск только если есть шанс на успех
+            // Если предсказание леса не лучше текущего рекорда хотя бы на 5%, не тратим время
+            bool worthTrying = isMinimize ? (predBestZ < resZInternal * 0.95) : (predBestZ > resZInternal * 1.05);
+
+            if (worthTrying) {
+                TPoint<T, N> startLocal;
+                for(int d = 0; d < (int)N; ++d) {
+                    startLocal[d] = gridSamples.at<float>(bestIdx.y, d);
+                }
+
+                // 5. Быстрый локальный поиск (лимит 50-100 итераций)
+                LocalMethod<T, N> lm(func, startLocal, lowerBound, upperBound, isMinimize);
+                lm.SetMaxTrial(70); 
+                auto localRes = lm.StartOptimization();
+                
+                T internalLocalZ = isMinimize ? static_cast<T>(localRes.second) : -static_cast<T>(localRes.second);
+
+                // 6. Обновление без RebuildQueue
+                if (internalLocalZ < resZInternal) {
+                    resZInternal = static_cast<double>(internalLocalZ);
+                    bestPoint = localRes.first;
+                    
+                    // Синхронизируем с вектором Z, если нужно для АГП
+                    if (evalIndex < Z.size()) {
+                        Z[evalIndex] = static_cast<double>(internalLocalZ);
+                    }
+                }
+            }
+        }
+
+    } while ((interval.getLength(pq.top().second) > eps) && (iteration < maxIteration));
+
+    T finalZ = isMinimize ? resZInternal : -resZInternal;
+    std::vector<T> result;
+    result.push_back(finalZ);
+    for (size_t i = 0; i < N; ++i) result.push_back(bestPoint[i]);
+    result.push_back(static_cast<T>(iteration));
+    
     return result;
 }
