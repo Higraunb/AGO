@@ -545,61 +545,176 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
         }
 
         // --- ВНЕДРЕНИЕ: СЕТКА, RF И ЛОКАЛЬНЫЙ ПОИСК ---
-        if (historyPoints.size() - lastTrainedSize >= p) {
+        static size_t current_p = p; // Используем динамический шаг
+
+        if (historyPoints.size() - lastTrainedSize >= current_p) {
             BuildRandomForest();
+            
+            static size_t lastCheckedSize = 0; 
+            size_t startIdx = lastCheckedSize;
+            size_t endIdx = historyPoints.size();
+            
             lastTrainedSize = historyPoints.size();
+            lastCheckedSize = historyPoints.size();
 
-            // 1. Подготовка сетки (Batch)
-            const int GRID_RES = 15; 
-            int totalPoints = std::pow(GRID_RES, N);
-            cv::Mat gridSamples(totalPoints, (int)N, CV_32F);
+            // 1. Динамически увеличиваем шаг p, чтобы реже переобучать лес на глубоких этапах
+            current_p = static_cast<size_t>(current_p * 1.5); 
 
-            for (int i = 0; i < totalPoints; ++i) {
-                int temp = i;
-                for (int d = 0; d < (int)N; ++d) {
-                    float val = lowerBound[d] + (upperBound[d] - lowerBound[d]) * (temp % GRID_RES) / (GRID_RES - 1.0f);
-                    gridSamples.at<float>(i, d) = val;
-                    temp /= GRID_RES;
+            // 2. Вычисляем шаги (дельты) для "соседей по сетке"
+            const int GRID_RES = 15;
+            std::vector<double> delta(N);
+            for (size_t d = 0; d < N; ++d) {
+                delta[d] = (static_cast<double>(upperBound[d]) - static_cast<double>(lowerBound[d])) / (GRID_RES - 1.0);
+            }
+
+            // 3. ФИЛЬТРАЦИЯ "БЕСПЕРСПЕКТИВНЫХ" ТОЧЕК
+            // Нет смысла искать локальный экстремум там, где значение функции заведомо хуже рекорда
+            std::vector<std::pair<double, size_t>> recentPoints;
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                recentPoints.push_back({historyValues[i], i});
+            }
+
+            // Сортируем: лучшие значения оказываются в начале
+            if (isMinimize) {
+                std::sort(recentPoints.begin(), recentPoints.end(), 
+                    [](const auto& a, const auto& b) { return a.first < b.first; });
+            } else {
+                std::sort(recentPoints.begin(), recentPoints.end(), 
+                    [](const auto& a, const auto& b) { return a.first > b.first; });
+            }
+
+            // Берем максимум 3 самые перспективные точки из новых
+            size_t topK = std::min<size_t>(3, recentPoints.size());
+            std::vector<size_t> promisingIndices;
+            for (size_t i = 0; i < topK; ++i) {
+                promisingIndices.push_back(recentPoints[i].second);
+            }
+
+            bool foundAnyCandidate = false;
+            TPoint<T, N> overallBestLocalPoint;
+            double overallBestLocalZ = isMinimize ? std::numeric_limits<double>::max() : -std::numeric_limits<double>::max();
+
+            if (!promisingIndices.empty()) {
+                size_t numNeighbors = 1ULL << N; // 2^n соседей
+                
+                // 4. ПАКЕТНОЕ СОЗДАНИЕ ВЫБОРКИ И ПРЕДСКАЗАНИЕ (BATCH PREDICTION)
+                cv::Mat neighborSamples(promisingIndices.size() * numNeighbors, (int)N, CV_32F);
+                
+                size_t rowIdx = 0;
+                for (size_t i : promisingIndices) {
+                    const auto& pt = historyPoints[i];
+                    for (size_t j = 0; j < numNeighbors; ++j) {
+                        for (size_t d = 0; d < N; ++d) {
+                            // Битовая маска для генерации 2^n направлений
+                            double shift = ((j >> d) & 1) ? delta[d] : -delta[d];
+                            double neighborVal = static_cast<double>(pt[d]) + shift;
+                            neighborVal = std::max(static_cast<double>(lowerBound[d]), 
+                                          std::min(static_cast<double>(upperBound[d]), neighborVal));
+                            neighborSamples.at<float>(rowIdx, d) = static_cast<float>(neighborVal);
+                        }
+                        rowIdx++;
+                    }
+                }
+
+                // Один вызов предсказания для всех соседей всех перспективных точек
+                cv::Mat predictions;
+                randomForest->predict(neighborSamples, predictions);
+
+                // 5. ПОИСК ЛОКАЛЬНЫХ ЭКСТРЕМУМОВ И ЗАПУСК ХУКА-ДЖИВСА
+                for (size_t idx = 0; idx < promisingIndices.size(); ++idx) {
+                    size_t ptIndex = promisingIndices[idx];
+                    double ptVal = historyValues[ptIndex];
+                    bool isLocalExtremum = true;
+                    
+                    size_t baseRow = idx * numNeighbors;
+                    for (size_t j = 0; j < numNeighbors; ++j) {
+                        double predZ = predictions.at<float>(baseRow + j, 0);
+                        if (isMinimize ? (ptVal >= predZ) : (ptVal <= predZ)) { 
+                            isLocalExtremum = false; 
+                            break; 
+                        }
+                    }
+
+                    if (isLocalExtremum) {
+                        LocalMethod<T, N> lm(func, historyPoints[ptIndex], lowerBound, upperBound, isMinimize);
+                        lm.SetMaxTrial(40); // Снижаем лимит для скорости (раньше было 70)
+                        auto localRes = lm.StartOptimization();
+                        
+                        double internalLocalZ = isMinimize ? static_cast<double>(localRes.second) : -static_cast<double>(localRes.second);
+
+                        if (!foundAnyCandidate || 
+                           (isMinimize ? (internalLocalZ < overallBestLocalZ) : (internalLocalZ > overallBestLocalZ))) {
+                            overallBestLocalZ = internalLocalZ;
+                            overallBestLocalPoint = localRes.first;
+                            foundAnyCandidate = true;
+                        }
+                    }
                 }
             }
 
-            // 2. Пакетное предсказание — в десятки раз быстрее циклов
-            cv::Mat predictions;
-            randomForest->predict(gridSamples, predictions);
+            // 6. Интеграция лучшей локальной точки обратно в АГП
+            if (foundAnyCandidate) {
+                int xEvalLocalIndex = 0;
+                std::vector<double> bestLocalDouble(N);
+                for(size_t d = 0; d < N; d++) bestLocalDouble[d] = static_cast<double>(overallBestLocalPoint[d]);
+                
+                double trueZLocalInternal = sign * func->ComputePoint(bestLocalDouble, xEvalLocalIndex);
 
-            // 3. Мгновенный поиск лучшего предсказания через OpenCV
-            double predBestZ;
-            cv::Point bestIdx;
-            if (isMinimize) 
-                cv::minMaxLoc(predictions, &predBestZ, nullptr, &bestIdx, nullptr);
-            else 
-                cv::minMaxLoc(predictions, nullptr, &predBestZ, nullptr, &bestIdx);
-
-            // 4. Логический фильтр: запускаем локальный поиск только если есть шанс на успех
-            // Если предсказание леса не лучше текущего рекорда хотя бы на 5%, не тратим время
-            bool worthTrying = isMinimize ? (predBestZ < resZInternal * 0.95) : (predBestZ > resZInternal * 1.05);
-
-            if (worthTrying) {
-                TPoint<T, N> startLocal;
-                for(int d = 0; d < (int)N; ++d) {
-                    startLocal[d] = gridSamples.at<float>(bestIdx.y, d);
+                if (isMinimize ? (trueZLocalInternal < resZInternal) : (trueZLocalInternal > resZInternal)) {
+                    if (xEvalLocalIndex == evalIndex) {
+                        resZInternal = trueZLocalInternal;
+                        bestPoint = overallBestLocalPoint;
+                    }
                 }
 
-                // 5. Быстрый локальный поиск (лимит 50-100 итераций)
-                LocalMethod<T, N> lm(func, startLocal, lowerBound, upperBound, isMinimize);
-                lm.SetMaxTrial(70); 
-                auto localRes = lm.StartOptimization();
-                
-                T internalLocalZ = isMinimize ? static_cast<T>(localRes.second) : -static_cast<T>(localRes.second);
+                if (xEvalLocalIndex < Z.size() && trueZLocalInternal < Z[xEvalLocalIndex]) {
+                    Z[xEvalLocalIndex] = trueZLocalInternal;
+                }
 
-                // 6. Обновление без RebuildQueue
-                if (internalLocalZ < resZInternal) {
-                    resZInternal = static_cast<double>(internalLocalZ);
-                    bestPoint = localRes.first;
-                    
-                    // Синхронизируем с вектором Z, если нужно для АГП
-                    if (evalIndex < Z.size()) {
-                        Z[evalIndex] = static_cast<double>(internalLocalZ);
+                historyPoints.push_back(overallBestLocalPoint);
+                historyValues.push_back(trueZLocalInternal);
+
+                double u_preimages[ags::noninjectiveMaxPreimages]; 
+                int preimCount = evolvent.GetAllPreimages(bestLocalDouble.data(), u_preimages);
+                
+                if (preimCount > 0) {
+                    double u_new = u_preimages[0]; 
+                    size_t targetIntervalIndex = std::numeric_limits<size_t>::max();
+                    for (size_t i = 0; i < interval.size(); ++i) {
+                        if (u_new > interval.getLeft(i) && u_new < interval.getRight(i)) {
+                            targetIntervalIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (targetIntervalIndex != std::numeric_limits<size_t>::max()) {
+                        size_t right_half_idx = interval.splitByIndex(targetIntervalIndex, u_new, trueZLocalInternal, xEvalLocalIndex);
+                        
+                        bool m_changed = false;
+                        double m1 = CalculateM(interval, targetIntervalIndex);
+                        if(xEvalLocalIndex < M.size() && (m1 > 0) && (M[xEvalLocalIndex] < m1)) {
+                            M[xEvalLocalIndex] = m1;
+                            L[xEvalLocalIndex] = (M[xEvalLocalIndex] == 0) ? 1.0 : r * M[xEvalLocalIndex];
+                            RebuildQueue(pq, interval);
+                            m_changed = true;
+                        }
+                        double m2 = CalculateM(interval, right_half_idx);
+                        if(xEvalLocalIndex < M.size() && (m2 > 0) && (M[xEvalLocalIndex] < m2)) {
+                            M[xEvalLocalIndex] = m2;
+                            L[xEvalLocalIndex] = (M[xEvalLocalIndex] == 0) ? 1.0 : r * M[xEvalLocalIndex];
+                            if(!m_changed) RebuildQueue(pq, interval);
+                            m_changed = true;
+                        }
+
+                        if(!m_changed) {
+                            double r1 = CalculateR(interval, targetIntervalIndex);
+                            interval.setIntervalR(targetIntervalIndex, r1);
+                            pq.push({r1, targetIntervalIndex});
+
+                            double r2 = CalculateR(interval, right_half_idx);
+                            interval.setIntervalR(right_half_idx, r2);
+                            pq.push({r2, right_half_idx});
+                        }
                     }
                 }
             }
