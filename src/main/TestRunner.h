@@ -69,8 +69,8 @@ void RunFamilyTest(const std::string& name, int startIndex, int count, double r,
         
         size_t maxIters = (N == 1) ? 5000 : 40000;
         int p = 150;
-        std::vector<double> res = alg.Solve(maxIters, p, isMinimize);
-        
+        std::vector<double> res = alg.Solve0(maxIters, isMinimize);
+          
         if (res.empty() || res.size() < N + 2) {
             fails++;
             LOG_ERROR("  [ОШИБКА] {} задача #{}: Алгоритм вернул пустой результат!", name, i);
@@ -134,7 +134,7 @@ TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, d
         
         size_t maxIters = (N >= 4) ? 2000000 : 500000;
         int p = 150;
-        std::vector<double> res = alg.Solve(maxIters, p, true);
+        std::vector<double> res = alg.Solve0(maxIters,  true);
         
         if (res.empty() || res.size() < N + 2) {
             fails++;

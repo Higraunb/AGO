@@ -48,6 +48,20 @@ private:
 
     void BuildRandomForest();
 
+    inline double FastPowInv(double dx) {
+        if constexpr (N == 1) return dx;
+        else if constexpr (N == 2) return std::sqrt(dx);
+        else if constexpr (N == 3) return std::cbrt(dx);
+        else if constexpr (N == 4) return std::sqrt(std::sqrt(dx));
+        else return std::pow(dx, 1.0 / static_cast<double>(N));
+    }
+
+    inline double FastPowInt(double base) {
+        double res = 1.0;
+        for (size_t i = 0; i < N; ++i) res *= base;
+        return res;
+    }
+
 public:
     TAlgorithm(TPoint<T, N> lowerBound_, TPoint<T, N> upperBound_, double eps_,
               double r_, IGeneralOptProblem* func_, int tightness_);
@@ -68,7 +82,7 @@ inline double TAlgorithm<T, N>::CalculateR(const TInterval<double>& interval, co
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
     double res = 0.0;
-    double deltax = pow((xRight - xLeft), 1.0 / N);
+    double deltax = FastPowInv(xRight - xLeft);
     
     LOG_DEBUG("TAlgorithm::CalculateR - index={}, xLeft={}, xRight={}, zLeft={}, zRight={}, vLeft={}, vRight={}, deltax={}", 
               index, xLeft, xRight, zLeft, zRight, vLeft, vRight, deltax);
@@ -102,7 +116,7 @@ inline double TAlgorithm<T, N>::CalculateM(const TInterval<double>& interval, co
     double zRight = interval.getZRight(index);
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
-    double deltax = pow((xRight - xLeft), 1.0 / N);
+    double deltax = FastPowInv(xRight - xLeft);
     LOG_DEBUG("TAlgorithm::CalculateM - index={}, xLeft={}, xRight={}, zLeft={}, zRight={}, vLeft={}, vRight={}", 
               index, xLeft, xRight, zLeft, zRight, vLeft, vRight);
 
@@ -127,9 +141,6 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
     double vLeft = interval.getVLeft(index);
     double vRight = interval.getVRight(index);
 
-    LOG_DEBUG("TAlgorithm::CalculateNewX - index={}, xLeft={}, xRight={}, zLeft={}, zRight={}, vLeft={}, vRight={}", 
-              index, xLeft, xRight, zLeft, zRight, vLeft, vRight);
-
     double dx = xRight - xLeft;
     if (dx <= 1e-15 || std::isnan(dx)) {
         LOG_DEBUG("TAlgorithm::CalculateNewX - Invalid dx: {}, returning midpoint", dx);
@@ -140,8 +151,9 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
     double newX = 0.0;
     if(vRight == vLeft && M[vLeft] > 0)
     {
-        newX = (xLeft + xRight) / 2.0 - sgn * std::pow(std::abs(zRight - zLeft) / M[vLeft], static_cast<double>(N)) / (2.0 * r);
-        LOG_DEBUG("TAlgorithm::CalculateNewX - Calculated newX={}, sgn={}", newX, sgn);
+        double tmp = std::abs(zRight - zLeft) / M[vLeft];
+        newX = (xLeft + xRight) / 2.0 - sgn * FastPowInt(tmp) / (2.0 * r);
+       
         
         if (std::isnan(newX) || newX <= xLeft || newX >= xRight) {
             LOG_DEBUG("TAlgorithm::CalculateNewX - Invalid newX (NaN or out of bounds), using midpoint");
@@ -150,26 +162,30 @@ inline double TAlgorithm<T, N>::CalculateNewX(const TInterval<double>& interval,
     }
     else 
     {
-        LOG_DEBUG("TAlgorithm::CalculateNewX - vRight != vLeft or L[vLeft]<=0, using midpoint");
+
         newX = (xLeft + xRight) / 2.0; 
     }
-    
-    LOG_DEBUG("TAlgorithm::CalculateNewX - Final newX={}", newX);
+ 
     return newX;
 }
 
 template <class T, size_t N>
 inline void TAlgorithm<T, N>::RebuildQueue(std::priority_queue<std::pair<double, size_t>>& pq, TInterval<double> &interval)
 {
-    LOG_DEBUG("TAlgorithm::RebuildQueue - Starting queue rebuild, current interval size={}", interval.size());
-    pq = std::priority_queue<std::pair<double, size_t>>();
+    std::vector<std::pair<double, size_t>> container;
+    container.reserve(interval.size());
     for (size_t i = 0; i < interval.size(); i++)
     {
         double new_R = CalculateR(interval, i);
         interval.setIntervalR(i, new_R);
-        pq.push({new_R, i});
+        container.push_back({new_R, i});
     }
-    LOG_DEBUG("TAlgorithm::RebuildQueue - Queue rebuild complete, new queue size={}", interval.size());
+    
+    std::priority_queue<std::pair<double, size_t>> new_pq(
+        std::less<std::pair<double, size_t>>(), 
+        std::move(container)
+    );
+    pq.swap(new_pq);
 }
 
 template <class T, size_t N>
@@ -178,16 +194,19 @@ inline void TAlgorithm<T, N>::BuildRandomForest()
     if (historyPoints.empty())
         return;
 
-    LOG_DEBUG("TAlgorithm::BuildRandomForest - Building random forest with {} points", historyPoints.size());
+    const size_t MAX_SAMPLES = 10000;
+    size_t start_idx = (historyPoints.size() > MAX_SAMPLES) ? historyPoints.size() - MAX_SAMPLES : 0;
+    size_t sample_count = historyPoints.size() - start_idx;
 
-    cv::Mat samples(static_cast<int>(historyPoints.size()), static_cast<int>(N), CV_32F);
-    cv::Mat responses(static_cast<int>(historyPoints.size()), 1, CV_32F);
+    cv::Mat samples(static_cast<int>(sample_count), static_cast<int>(N), CV_32F);
+    cv::Mat responses(static_cast<int>(sample_count), 1, CV_32F);
 
-    for (size_t i = 0; i < historyPoints.size(); ++i) {
+    for (size_t i = 0; i < sample_count; ++i) {
+        size_t actual_idx = start_idx + i;
         for (size_t j = 0; j < N; ++j) {
-            samples.at<float>(i, j) = static_cast<float>(historyPoints[i][j]);
+            samples.at<float>(i, j) = static_cast<float>(historyPoints[actual_idx][j]);
         }
-        responses.at<float>(i, 0) = static_cast<float>(historyValues[i]);
+        responses.at<float>(i, 0) = static_cast<float>(historyValues[actual_idx]);
     }
 
     randomForest = cv::ml::RTrees::create();
@@ -197,15 +216,13 @@ inline void TAlgorithm<T, N>::BuildRandomForest()
     randomForest->setUseSurrogates(false);
     randomForest->setCVFolds(0);
     randomForest->setActiveVarCount(std::max(1, static_cast<int>(N / 2)));
-
     randomForest->setTermCriteria(cv::TermCriteria(cv::TermCriteria::MAX_ITER, 30, 0.1));
 
     CV_Assert(samples.type() == CV_32F);
     CV_Assert(responses.type() == CV_32F);
+    
     randomForest->train(samples, cv::ml::ROW_SAMPLE, responses);
     forestBuilt = true;
-
-    LOG_DEBUG("TAlgorithm::BuildRandomForest - Random forest built successfully");
 }
 
 template<class T, size_t N>
@@ -258,6 +275,8 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
     T sign = isMinimize ? 1.0 : -1.0;
     // calculate first interval
     historyPoints.clear();
+    historyPoints.reserve(maxIteration + 100);
+    historyValues.reserve(maxIteration + 100);
     historyValues.clear();
     forestBuilt = false;
 
@@ -283,7 +302,6 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
     T za = sign * func->ComputePoint(std::vector<double>(pointAData, pointAData + N), va);
     T zb = sign * func->ComputePoint(std::vector<double>(pointBData, pointBData + N), vb);
 
-    LOG_DEBUG("TAlgorithm::Solve - Initial points: pointA z={}, va={}, pointB z={}, vb={}", za, va, zb, vb);
 
     interval.initialize(ua, ub, za, zb, va, vb);
 
@@ -297,11 +315,10 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
     Z[0] = resZInternal;
     M[va] = CalculateM(interval, 0);
     L[va] = (M[va] == 0) ? 1.0 : r * M[va];
-    LOG_DEBUG("TAlgorithm::Solve - Initial M[{}]={}, L[{}]={}", va, M[va], va, L[va]);
+   
     
     R = CalculateR(interval, 0);
     interval.setIntervalR(0, R);
-    LOG_DEBUG("TAlgorithm::Solve - Initial R={}", R);
     
     std::priority_queue<std::pair<double, size_t>> pq;
     pq.push({R, 0});
@@ -309,8 +326,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
     do
     {
         iteration++;
-        LOG_DEBUG("TAlgorithm::Solve - Iteration {}", iteration);
-        
+       
         // get max R
         indexInteravlWhithMaxR = pq.top().second;
         pq.pop();
@@ -324,7 +340,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
         TPoint<T, N> newPoint(newPointData);
         double newZInternal = sign * func->ComputePoint(vector<double>(newPointData, newPointData + N), xEvalIndex);
 
-        LOG_DEBUG("TAlgorithm::Solve - New point: u={}, z={}, evalIndex={}", newU, newZInternal, xEvalIndex);
+       
 
         historyPoints.push_back(newPoint);
         historyValues.push_back(newZInternal);
@@ -340,18 +356,18 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
             {
                 bestPoint = newPoint;
                 resZInternal = newZInternal;
-                LOG_DEBUG("TAlgorithm::Solve - New best point found: z={}", resZInternal);
+            
             }
         }
         if(xEvalIndex < Z.size() && newZInternal < Z[xEvalIndex])
         {
             Z[xEvalIndex] = newZInternal;
-            LOG_DEBUG("TAlgorithm::Solve - Updated Z[{}] to {}", xEvalIndex, newZInternal);
+       
         }
         // split the interval and get new two intervals
 
         size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newU, newZInternal, xEvalIndex);
-        LOG_DEBUG("TAlgorithm::Solve - Split interval {} into {} and {}", indexInteravlWhithMaxR, indexInteravlWhithMaxR, right_half_idx);
+        
         
         bool m_changed = false;
         // check has M changed
@@ -363,7 +379,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
             L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
             RebuildQueue(pq, interval);
             m_changed = true;
-            LOG_DEBUG("TAlgorithm::Solve - M changed for xEvalIndex={}: new M={}, L={}", xEvalIndex, m1, L[xEvalIndex]);
+            
         }
         double m2 = CalculateM(interval, right_half_idx);
         if(xEvalIndex < M.size() && (m2 > 0) && (M[xEvalIndex] < m2))
@@ -372,7 +388,7 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
             L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
             RebuildQueue(pq, interval);
             m_changed = true;
-            LOG_DEBUG("TAlgorithm::Solve - M changed for xEvalIndex={}: new M={}, L={}", xEvalIndex, m2, L[xEvalIndex]);
+            
         }
 
         // if no, calculate R for new intrefal
@@ -390,10 +406,8 @@ inline std::vector<T> TAlgorithm<T, N>::Solve0(size_t maxIteration, bool isMinim
             interval.setIntervalR(idx2, r2);
             pq.push({r2, idx2});
             
-            LOG_DEBUG("TAlgorithm::Solve - Added intervals to queue: R1={}, R2={}", r1, r2);
+            
         }
-
-        LOG_DEBUG("TAlgorithm::Solve - Queue size={}, Interval size={}", (int)interval.size(), (int)interval.size());
 
     } while ((interval.getLength(pq.top().second) > eps) && (iteration < maxIteration));
 
@@ -441,7 +455,11 @@ template <class T, size_t N>
 inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, bool isMinimize)
 {
     LOG_DEBUG("TAlgorithm::Solve - Starting solve with maxIteration={}, p={}, isMinimize={}", maxIteration, p, isMinimize);
-    
+    double newPointData[N];
+    std::vector<double> bestLocalDouble(N);
+    std::vector<double> delta(N);
+    double u_preimages[ags::noninjectiveMaxPreimages];
+
     T sign = isMinimize ? 1.0 : -1.0;
     historyPoints.clear();
     historyValues.clear();
@@ -484,8 +502,15 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
     std::priority_queue<std::pair<double, size_t>> pq;
     pq.push({R, 0});
 
+    const size_t MAX_TOP_K = 3;
+    const size_t numNeighbors = 1ULL << N; // 2^n соседей
+    cv::Mat neighborSamplesBuffer(static_cast<int>(MAX_TOP_K * numNeighbors), static_cast<int>(N), CV_32F);
+    cv::Mat predictions;
+
     size_t lastTrainedSize = 0;
-    
+    size_t lastCheckedSize = 0; 
+    size_t current_p = p;
+
     do
     {
         iteration++;
@@ -495,7 +520,6 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
 
         double newU = CalculateNewX(interval, indexInteravlWhithMaxR);
         int xEvalIndex = 0;
-        double newPointData[N];
         evolvent.GetImage(newU, newPointData);
         TPoint<T, N> newPoint(newPointData);
         double newZInternal = sign * func->ComputePoint(std::vector<double>(newPointData, newPointData + N), xEvalIndex);
@@ -519,22 +543,27 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
         size_t right_half_idx = interval.splitByIndex(indexInteravlWhithMaxR, newU, newZInternal, xEvalIndex);
         
         bool m_changed = false;
+        
         double m1 = CalculateM(interval, indexInteravlWhithMaxR);
-        if(xEvalIndex < M.size() && (m1 > 0) && (M[xEvalIndex] < m1)) {
+        if(xEvalIndex < M.size() && (m1 > 0) && (M[xEvalIndex] < m1)) 
+        {
             M[xEvalIndex] = m1;
             L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
-            RebuildQueue(pq, interval);
             m_changed = true;
         }
+        
         double m2 = CalculateM(interval, right_half_idx);
-        if(xEvalIndex < M.size() && (m2 > 0) && (M[xEvalIndex] < m2)) {
+        if(xEvalIndex < M.size() && (m2 > 0) && (M[xEvalIndex] < m2)) 
+        {
             M[xEvalIndex] = m2;
             L[xEvalIndex] = (M[xEvalIndex] == 0) ? 1.0 : r * M[xEvalIndex];
-            if(!m_changed) RebuildQueue(pq, interval);
             m_changed = true;
         }
 
-        if(!m_changed) {
+        if(m_changed)
+            RebuildQueue(pq, interval);
+        else 
+        {
             double r1 = CalculateR(interval, indexInteravlWhithMaxR);
             interval.setIntervalR(indexInteravlWhithMaxR, r1);
             pq.push({r1, indexInteravlWhithMaxR});
@@ -544,25 +573,21 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
             pq.push({r2, right_half_idx});
         }
 
-        // --- ВНЕДРЕНИЕ: СЕТКА, RF И ЛОКАЛЬНЫЙ ПОИСК ---
-        static size_t current_p = p; // Используем динамический шаг
-
         if (historyPoints.size() - lastTrainedSize >= current_p) {
             BuildRandomForest();
             
-            static size_t lastCheckedSize = 0; 
-            size_t startIdx = lastCheckedSize;
+           size_t startIdx = lastCheckedSize;
             size_t endIdx = historyPoints.size();
             
             lastTrainedSize = historyPoints.size();
             lastCheckedSize = historyPoints.size();
 
-            // 1. Динамически увеличиваем шаг p, чтобы реже переобучать лес на глубоких этапах
+            // 1. Динамически увеличиваем шаг p
             current_p = static_cast<size_t>(current_p * 1.5); 
 
             // 2. Вычисляем шаги (дельты) для "соседей по сетке"
             const int GRID_RES = 15;
-            std::vector<double> delta(N);
+            
             for (size_t d = 0; d < N; ++d) {
                 delta[d] = (static_cast<double>(upperBound[d]) - static_cast<double>(lowerBound[d])) / (GRID_RES - 1.0);
             }
@@ -598,27 +623,26 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
                 size_t numNeighbors = 1ULL << N; // 2^n соседей
                 
                 // 4. ПАКЕТНОЕ СОЗДАНИЕ ВЫБОРКИ И ПРЕДСКАЗАНИЕ (BATCH PREDICTION)
-                cv::Mat neighborSamples(promisingIndices.size() * numNeighbors, (int)N, CV_32F);
-                
                 size_t rowIdx = 0;
                 for (size_t i : promisingIndices) {
                     const auto& pt = historyPoints[i];
                     for (size_t j = 0; j < numNeighbors; ++j) {
                         for (size_t d = 0; d < N; ++d) {
-                            // Битовая маска для генерации 2^n направлений
                             double shift = ((j >> d) & 1) ? delta[d] : -delta[d];
                             double neighborVal = static_cast<double>(pt[d]) + shift;
                             neighborVal = std::max(static_cast<double>(lowerBound[d]), 
                                           std::min(static_cast<double>(upperBound[d]), neighborVal));
-                            neighborSamples.at<float>(rowIdx, d) = static_cast<float>(neighborVal);
+                            
+                            // Пишем данные прямо в заранее выделенный буфер
+                            neighborSamplesBuffer.at<float>(rowIdx, d) = static_cast<float>(neighborVal);
                         }
                         rowIdx++;
                     }
                 }
 
                 // Один вызов предсказания для всех соседей всех перспективных точек
-                cv::Mat predictions;
-                randomForest->predict(neighborSamples, predictions);
+                cv::Mat activeSamples = neighborSamplesBuffer.rowRange(0, static_cast<int>(rowIdx));
+                randomForest->predict(activeSamples, predictions);
 
                 // 5. ПОИСК ЛОКАЛЬНЫХ ЭКСТРЕМУМОВ И ЗАПУСК ХУКА-ДЖИВСА
                 for (size_t idx = 0; idx < promisingIndices.size(); ++idx) {
@@ -655,11 +679,13 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
             // 6. Интеграция лучшей локальной точки обратно в АГП
             if (foundAnyCandidate) {
                 int xEvalLocalIndex = 0;
-                std::vector<double> bestLocalDouble(N);
+                
+                // Используем уже выделенный вектор (из предыдущего совета)
                 for(size_t d = 0; d < N; d++) bestLocalDouble[d] = static_cast<double>(overallBestLocalPoint[d]);
                 
                 double trueZLocalInternal = sign * func->ComputePoint(bestLocalDouble, xEvalLocalIndex);
 
+                // Обновляем глобальные рекорды (это понизит R для всех плохих интервалов!)
                 if (isMinimize ? (trueZLocalInternal < resZInternal) : (trueZLocalInternal > resZInternal)) {
                     if (xEvalLocalIndex == evalIndex) {
                         resZInternal = trueZLocalInternal;
@@ -671,52 +697,12 @@ inline std::vector<T> TAlgorithm<T, N>::Solve(size_t maxIteration, size_t p, boo
                     Z[xEvalLocalIndex] = trueZLocalInternal;
                 }
 
+                // Добавляем точку для суррогатной модели
                 historyPoints.push_back(overallBestLocalPoint);
                 historyValues.push_back(trueZLocalInternal);
 
-                double u_preimages[ags::noninjectiveMaxPreimages]; 
-                int preimCount = evolvent.GetAllPreimages(bestLocalDouble.data(), u_preimages);
-                
-                if (preimCount > 0) {
-                    double u_new = u_preimages[0]; 
-                    size_t targetIntervalIndex = std::numeric_limits<size_t>::max();
-                    for (size_t i = 0; i < interval.size(); ++i) {
-                        if (u_new > interval.getLeft(i) && u_new < interval.getRight(i)) {
-                            targetIntervalIndex = i;
-                            break;
-                        }
-                    }
-
-                    if (targetIntervalIndex != std::numeric_limits<size_t>::max()) {
-                        size_t right_half_idx = interval.splitByIndex(targetIntervalIndex, u_new, trueZLocalInternal, xEvalLocalIndex);
-                        
-                        bool m_changed = false;
-                        double m1 = CalculateM(interval, targetIntervalIndex);
-                        if(xEvalLocalIndex < M.size() && (m1 > 0) && (M[xEvalLocalIndex] < m1)) {
-                            M[xEvalLocalIndex] = m1;
-                            L[xEvalLocalIndex] = (M[xEvalLocalIndex] == 0) ? 1.0 : r * M[xEvalLocalIndex];
-                            RebuildQueue(pq, interval);
-                            m_changed = true;
-                        }
-                        double m2 = CalculateM(interval, right_half_idx);
-                        if(xEvalLocalIndex < M.size() && (m2 > 0) && (M[xEvalLocalIndex] < m2)) {
-                            M[xEvalLocalIndex] = m2;
-                            L[xEvalLocalIndex] = (M[xEvalLocalIndex] == 0) ? 1.0 : r * M[xEvalLocalIndex];
-                            if(!m_changed) RebuildQueue(pq, interval);
-                            m_changed = true;
-                        }
-
-                        if(!m_changed) {
-                            double r1 = CalculateR(interval, targetIntervalIndex);
-                            interval.setIntervalR(targetIntervalIndex, r1);
-                            pq.push({r1, targetIntervalIndex});
-
-                            double r2 = CalculateR(interval, right_half_idx);
-                            interval.setIntervalR(right_half_idx, r2);
-                            pq.push({r2, right_half_idx});
-                        }
-                    }
-                }
+                // ВНИМАНИЕ: Мы БОЛЬШЕ НЕ ВЫЗЫВАЕМ GetAllPreimages и splitByIndex.
+                // Сетка Пеано остается математически чистой, константа M не взрывается.
             }
         }
 
