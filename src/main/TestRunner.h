@@ -14,10 +14,10 @@
 #include "grishagin_function.hpp"
 #include "GKLSProblem.hpp"
 #include "GKLSConstrainedProblem.hpp"
-// Убедись, что путь к логгеру соответствует твоей структуре проекта
 #include "../../../Logger/Logger.h" 
 
-struct TestStats {
+struct TestStats 
+{
     size_t total;
     size_t success;
     size_t fail;
@@ -27,9 +27,6 @@ struct TestStats {
     double avgTimeSec;
 };
 
-// =========================================================================
-// Универсальный раннер для статических семейств (Hill, Shekel, Grishagin)
-// =========================================================================
 template<typename ProblemClass, size_t N>
 void RunFamilyTest(const std::string& name, int startIndex, int count, double r, int tightness, double eps, bool isMinimize) 
 {
@@ -45,11 +42,14 @@ void RunFamilyTest(const std::string& name, int startIndex, int count, double r,
         
         try 
         {
-            if (isMinimize) {
+            if (isMinimize) 
+            {
                 if (!prob.GetStatus(ofpMinimum)) throw std::runtime_error("No min");
                 expZ = prob.GetOptimumValue();
                 expX = prob.GetOptimumPoint();
-            } else {
+            } 
+            else 
+            {
                 if (!prob.GetStatus(ofpMaximum)) throw std::runtime_error("No max");
                 expZ = prob.GetMaxValue();
                 expX = prob.GetMaxPoint();
@@ -57,23 +57,24 @@ void RunFamilyTest(const std::string& name, int startIndex, int count, double r,
         } 
         catch (...) 
         {
-            continue; // Пропускаем задачи без известного экстремума
+            continue; 
         }
 
         std::vector<double> lb, ub;
         prob.GetBounds(lb, ub);
-        TPoint<double, N> lower(lb);
-        TPoint<double, N> upper(ub);
+        TPoint<N> lower(lb);
+        TPoint<N> upper(ub);
         
-        TAlgorithm<double, N> alg(lower, upper, eps, r, &prob, tightness);
+        Algorithm<N> alg(lower, upper, eps, r, &prob, tightness);
         
         size_t maxIters = (N == 1) ? 5000 : 40000;
         int p = 150;
-        std::vector<double> res = alg.Solve0(maxIters, isMinimize);
+        std::vector<double> res = alg.Solve(maxIters, p, isMinimize);
           
-        if (res.empty() || res.size() < N + 2) {
+        if (res.empty() || res.size() < N + 2) 
+        {
             fails++;
-            LOG_ERROR("  [ОШИБКА] {} задача #{}: Алгоритм вернул пустой результат!", name, i);
+            LOG_ERROR("  [ERROR] {} task #{}: Algorithm returned empty result!", name, i);
             continue;
         }
         
@@ -81,8 +82,10 @@ void RunFamilyTest(const std::string& name, int startIndex, int count, double r,
         bool pointOk = false;
         double maxDist = 0.0;
         
-        if (expX.size() >= N) {
-            for (size_t d = 0; d < N; ++d) {
+        if (expX.size() >= N) 
+        {
+            for (size_t d = 0; d < N; ++d) 
+            {
                 maxDist = std::max(maxDist, std::abs(res[d+1] - expX[d]));
             }
             pointOk = (maxDist <= 0.05);
@@ -90,12 +93,15 @@ void RunFamilyTest(const std::string& name, int startIndex, int count, double r,
         
         bool valOk = (std::abs(gotZ - expZ) <= 0.05);
         
-        if (pointOk || valOk) {
+        if (pointOk || valOk) 
+        {
             success++;
             totalIters += static_cast<size_t>(res.back());
-        } else {
+        } 
+        else 
+        {
             fails++;
-            LOG_INFO("  [ПРОМАХ] {} задача #{}: Ожидали Z={:.6f}, Нашли Z={:.6f} | Откл. X={:.6f} (допуск 0.05)", 
+            LOG_INFO("  [MISS] {} task #{}: Expected Z={:.6f}, Found Z={:.6f} | Diff X={:.6f} (tolerance 0.05)", 
                      name, i, expZ, gotZ, maxDist);
         }
     }
@@ -103,22 +109,18 @@ void RunFamilyTest(const std::string& name, int startIndex, int count, double r,
     double rate = (double)success / count * 100.0;
     double avgIter = success > 0 ? (double)totalIters / success : 0;
     
-    std::string result_msg = fmt::format("{:<15} | {:<3} | r={:<3.1f} | Успех: {:>6.2f}% | Ср. итераций: {:>5.0f}", 
+    std::string result_msg = fmt::format("{:<15} | {:<3} | r={:<3.1f} | Success: {:>6.2f}% | Avg. iterations: {:>5.0f}", 
                                          name, (isMinimize ? "MIN" : "MAX"), r, rate, avgIter);
     LOG_INFO(result_msg);
 }
 
-// =========================================================================
-// Раннер для безусловных задач GKLS (с замером времени и статистикой промахов)
-// =========================================================================
 template<size_t N>
 TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, double r, int tightness, double gkls_eps) 
 {
     size_t success = 0, fails = 0, totalIters = 0;
     
-    // Пересчет допуска для многомерной развертки Пеано
-    double alg_eps = std::pow(gkls_eps / 4.0, static_cast<double>(N)); 
-
+    // double alg_eps = std::pow(gkls_eps / 4.0, static_cast<double>(N)); 
+    double alg_eps = gkls_eps;
     auto start_time = std::chrono::high_resolution_clock::now();
 
     for (int i = 1; i <= count; ++i) 
@@ -127,18 +129,19 @@ TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, d
         
         std::vector<double> lb, ub;
         prob.GetBounds(lb, ub);
-        TPoint<double, N> lower(lb);
-        TPoint<double, N> upper(ub);
+        TPoint<N> lower(lb);
+        TPoint<N> upper(ub);
         
-        TAlgorithm<double, N> alg(lower, upper, alg_eps, r, &prob, tightness);
+        Algorithm<N> alg(lower, upper, alg_eps, r, &prob, tightness);
         
         size_t maxIters = (N >= 4) ? 2000000 : 500000;
         int p = 150;
-        std::vector<double> res = alg.Solve0(maxIters,  true);
+        std::vector<double> res = alg.Solve(maxIters, p, true);
         
-        if (res.empty() || res.size() < N + 2) {
+        if (res.empty() || res.size() < N + 2) 
+        {
             fails++;
-            LOG_ERROR("  [ОШИБКА] {} задача #{}: Алгоритм вернул пустой или неполный результат!", name, i);
+            LOG_ERROR("  [ERROR] {} task #{}: Algorithm returned empty or incomplete result!", name, i);
             continue;
         }
         
@@ -148,8 +151,10 @@ TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, d
         
         bool pointOk = false;
         double maxDist = 0.0;
-        if (expX.size() >= N) {
-            for (size_t d = 0; d < N; ++d) {
+        if (expX.size() >= N) 
+        {
+            for (size_t d = 0; d < N; ++d) 
+            {
                 maxDist = std::max(maxDist, std::abs(res[d+1] - expX[d]));
             }
             pointOk = (maxDist <= gkls_eps);
@@ -157,12 +162,15 @@ TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, d
         
         bool valOk = (std::abs(gotZ - expZ) <= gkls_eps);
         
-        if (pointOk || valOk) {
+        if (pointOk || valOk) 
+        {
             success++;
             totalIters += static_cast<size_t>(res.back());
-        } else {
+        } 
+        else 
+        {
             fails++;
-            LOG_INFO("  [ПРОМАХ] {} задача #{}: Ожидали Z={:.6f}, Нашли Z={:.6f} | X={:.6f} Y={:.6f} (допуск {:.6f}) iteration {:.1f}", 
+            LOG_INFO("  [MISS] {} task #{}: Expected Z={:.6f}, Found Z={:.6f} | X={:.6f} Y={:.6f} (tolerance {:.6f}) iteration {:.1f}", 
                      name, i, expZ, gotZ, res[1], res[2], gkls_eps, res[3]);
         }
     }
@@ -175,41 +183,24 @@ TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, d
     double rate = (double)success / count * 100.0;
     double avgIter = success > 0 ? (double)totalIters / success : 0;
     
-    std::string result_msg = fmt::format("{:<15} | MIN | r={:<3.1f} | Успех: {:>6.2f}% | Ср. итераций: {:>5.0f} | Время: {:.2f}s", 
+    std::string result_msg = fmt::format("{:<15} | MIN | r={:<3.1f} | Success: {:>6.2f}% | Avg. iterations: {:>5.0f} | Time: {:.2f}s", 
                                          name, r, rate, avgIter, totalTime);
     LOG_INFO(result_msg);
 
     return { (size_t)count, success, fails, rate, avgIter, totalTime, avgTime };
 }
 
-// =========================================================================
-// Главная функция запуска всех бенчмарков
-// =========================================================================
 inline void RunConsoleBenchmarks() 
 {
-    // LOG_INFO("===================================================================");
-    // LOG_INFO("   СВОДНОЕ ТЕСТИРОВАНИЕ: HILL, SHEKEL, GRISHAGIN");
-    // LOG_INFO("===================================================================");
-    
     double eps = 0.001; 
     int tightness = 10; 
 
-    // // --- 1D и 2D Задачи ---
-    // RunFamilyTest<THillProblem, 1>("Hill (1D)", 0, 1000, 2.5, tightness, eps, true);
-    // RunFamilyTest<THillProblem, 1>("Hill (1D)", 0, 1000, 2.5, tightness, eps, false);
-
-    // RunFamilyTest<TShekelProblem, 1>("Shekel (1D)", 0, 1000, 3.5, tightness, eps, true);
-    // RunFamilyTest<TShekelProblem, 1>("Shekel (1D)", 0, 1000, 3.5, tightness, eps, false);
-
-    // // Grishagin MAX не вызываем, так как аналитически заложен только минимум
-    // RunFamilyTest<TGrishaginProblem, 2>("Grishagin (2D)", 1, 100, 5.5, 10, 0.0001, true);
-
     LOG_INFO("===================================================================");
-    LOG_INFO("   СВОДНОЕ ТЕСТИРОВАНИЕ GKLS");
+    LOG_INFO("   GKLS SUMMARY TESTING");
     LOG_INFO("===================================================================");
     
     std::vector<int>    dims    = { 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8 };
-    std::vector<double> epss    = { 0.01, 0.01, 0.01, 0.01, 0.03, 0.03, 0.03, 0.03, 0.0464, 0.0517, 0.0562 };
+    std::vector<double> epss    = { 0.002, 0.002, 0.01, 0.01, 0.03, 0.03, 0.03, 0.03, 0.0464, 0.0517, 0.0562 };
     std::vector<std::string> shs     = { "simple", "hard", "simple", "hard", "simple", "hard", "simple", "hard", "simple", "simple", "simple" };
     std::vector<double> rs      = { 5, 6.7, 4.5, 5.6, 4.5, 4.6, 4.5, 5.6, 5.6, 5.6, 5.6 };
     
@@ -223,16 +214,17 @@ inline void RunConsoleBenchmarks()
         GKLSClass type = (sh0 == "simple") ? Simple : Hard;
         std::string name = fmt::format("GKLS {}D {}", N, sh0 == "simple" ? "Simple" : "Hard  ");
 
-        switch (N) {
+        switch (N) 
+        {
             case 2: RunGKLSTest<2>(name, type, 100, r, tightness, gkls_eps); break;
             case 3: RunGKLSTest<3>(name, type, 100, r, tightness, gkls_eps); break;
             case 4: RunGKLSTest<4>(name, type, 100, r, tightness, gkls_eps); break;
             case 5: RunGKLSTest<5>(name, type, 100, r, tightness, gkls_eps); break;
-            default: LOG_ERROR("Размерность {} не поддерживается в switch", N); continue;
+            default: LOG_ERROR("Dimension {} is not supported in switch", N); continue;
         }
     }
     
     LOG_INFO("===================================================================");
-    LOG_INFO("   Эксперименты завершены.");
+    LOG_INFO("   Experiments completed.");
     LOG_INFO("===================================================================");
 }
