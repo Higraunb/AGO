@@ -118,8 +118,7 @@ template<size_t N>
 TestStats RunGKLSTest(const std::string& name, GKLSClass gklsClass, int count, double r, int tightness, double gkls_eps) 
 {
     size_t success = 0, fails = 0, totalIters = 0;
-    
-    // double alg_eps = std::pow(gkls_eps / 4.0, static_cast<double>(N)); 
+
     double alg_eps = gkls_eps;
     auto start_time = std::chrono::high_resolution_clock::now();
 
