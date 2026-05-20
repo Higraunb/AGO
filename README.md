@@ -1,6 +1,6 @@
 # AGO Application (GSA)
 
-![C++](https://img.shields.io/badge/C++-17-blue.svg) ![CMake](https://img.shields.io/badge/CMake-3.14+-green.svg) ![License](https://img.shields.io/badge/License-MIT-green.svg)
+![C++](https://img.shields.io/badge/C++-17-blue.svg) ![CMake](https://img.shields.io/badge/CMake-3.14+-green.svg)
 
 Консольное приложение для запуска бенчмарков и тестирования эффективности алгоритмов глобального поиска (включая функции GKLS). 
 
