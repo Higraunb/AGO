@@ -9,6 +9,7 @@
 
 using std::vector;
 
+#define M_PI 3.14159265358979323846
 #define NUM_HILL_PROBLEMS 1000
 #define NUM_HILL_COEFF 14
 

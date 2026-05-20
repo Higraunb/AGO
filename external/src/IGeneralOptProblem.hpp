@@ -89,11 +89,6 @@ protected:
   /// If not specified, throws an exception
   double GetMaxValue(uint index) const;
 
-  /// Get global minimizer
-  
-  /// Get global minimum value
-  double GetOptimumValue() const;
- 
   /// Compute the value of the function number index at the point 
   virtual double Compute(int index, const vector<double>& y) const = 0;
 
@@ -104,6 +99,7 @@ protected:
   
   IGeneralOptProblem();
 public:
+  double GetOptimumValue() const;
   vector<double> GetMaxPoint(uint index) const;
   vector<double> GetOptimumPoint() const;
   virtual int GetConstraintsNumber() const { return mConstraintIndeces.size(); }

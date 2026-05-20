@@ -1,10 +1,11 @@
 #include "TestRunner.h"
 #include "../../../Logger/Logger.h"
 #include <spdlog/spdlog.h>
+#include <clocale>
 
 int main() 
 {
-    // Логгер сам создаст нужные папки
+    setlocale(LC_ALL, "Russian"); 
     Logger::init("../../../log/app.log");
     
     LOG_INFO("AGO Application - Starting");
