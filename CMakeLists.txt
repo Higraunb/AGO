@@ -25,7 +25,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
-set(OpenCV_DIR "C:/msys64/ucrt64/lib/cmake/opencv4")
+if(WIN32)
+    set(OpenCV_DIR "C:/msys64/ucrt64/lib/cmake/opencv4")
+endif()
+
 find_package(OpenCV REQUIRED)
 
 find_package(Threads REQUIRED)
